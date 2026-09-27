@@ -70,14 +70,16 @@ export class RoundView {
     });
     this.round.gates.gates.forEach((g, i) => {
       const [a, b] = this.flaps[i]!;
-      a!.rotation.y = g.openAmount * (Math.PI / 2);
-      b!.rotation.y = -g.openAmount * (Math.PI / 2);
+      // Flaps snap open with a little overshoot and settle; close smoothly.
+      const angle = (g.open ? easeOutBack(g.openAmount) : easeInOutCubic(g.openAmount)) * (Math.PI / 2);
+      a!.rotation.y = angle;
+      b!.rotation.y = -angle;
     });
     this.round.doors.doors.forEach((d, i) => {
       const door = this.doors[i]!;
-      // Doors slide sideways into the body; hidden while fully open.
+      // Doors slide out of the body and shut with a soft landing; hidden while fully open.
       door.visible = d.closedAmount > 0.01;
-      door.position.lerpVectors(door.userData.open, door.userData.shut, d.closedAmount);
+      door.position.lerpVectors(door.userData.open, door.userData.shut, easeInOutCubic(d.closedAmount));
     });
   }
 
@@ -87,6 +89,15 @@ export class RoundView {
       if (o instanceof THREE.Mesh) o.geometry.dispose();
     });
   }
+}
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+function easeOutBack(t: number): number {
+  const c = 1.4;
+  return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
 }
 
 function coinMesh(value: Denomination): THREE.Object3D {

@@ -31,7 +31,9 @@ Click to capture the mouse. Esc releases it and opens the **Tuning** panel
 | C / Left Ctrl | Crouch (crouch in the air, or together with jump, to crouch-jump) |
 | Shift | Walk |
 | E | Use (the ticket machines) |
-| 1–9 / click, Esc | Ticket machine buttons; Esc cancels |
+| 1–9 / click | Ticket machine buttons |
+| E or Backspace | Leave the machine (you're straight back in the game) |
+| Esc | Cancel at the machine; browsers then need a click to re-capture the mouse |
 | R | Restart the round |
 
 ## Layout
@@ -93,7 +95,7 @@ The player's forward at yaw 0 is Blender **+Y**. 1 Blender unit = 1 m.
 | Any mesh | Drawn and solid. A mesh that is exactly a box (like the default cube, with any location, rotation and scale) gets an exact box collider; anything else a triangle-mesh collider |
 | Custom property `collider` = `box` / `mesh` / `none` | Overrides that choice. `none` makes a mesh decoration only |
 | Mesh named `<anything>_col` | Collision only, not drawn. Put simple boxes under detailed art (and set `collider` = `none` on the art) |
-| Mesh named `<name>_col_trigger` | Invisible trigger volume (a box, or the convex hull of any other shape). Never blocks the player; the HUD shows `zone <name>` while you're inside |
+| Mesh named `<name>_col_trigger` | Invisible trigger volume (a box, or the convex hull of any other shape). Never blocks the player; the HUD shows `zone <name>` while you're inside (with Tuning → Debug → zones on) |
 | Empty with custom property `type` | A marker. The loader returns markers grouped by type, each with a position and a facing (the empty's +Y axis) |
 | Marker `type` = `player_spawn` | Where the player's feet start, facing the empty's +Y axis |
 | Marker `type` = `chaser_spawn` | Where the chaser starts |

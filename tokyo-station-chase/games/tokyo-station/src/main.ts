@@ -90,6 +90,7 @@ async function main() {
   const cameraFeel = { ...defaultCameraFeel };
   const simulation = { tickRate: 66.67 };
   const chase = { enabled: true, footstepVolume: 0.8, showNavmesh: false };
+  const debug = { zones: false };
 
   const player = new PlayerController(world, movement, level.spawn.position);
 
@@ -274,6 +275,7 @@ async function main() {
   });
   tuning.addGroup("Audio", audio.settings, { master: [0, 1, 0.01], ambience: [0, 1, 0.01], announcements: true });
   tuning.addGroup("Simulation", simulation, { tickRate: [20, 144, 1] });
+  tuning.addGroup("Debug", debug, { zones: true });
   tuning.addPersistence();
   tuning.load();
   const applyTuning = () => {
@@ -385,7 +387,7 @@ async function main() {
         worstMs: stats.worstMs,
         rawInput: look.rawInput,
         tickRate: loop.tickRate,
-        zones: triggersAt(world, level, { x: player.feet.x, y: player.feet.y + 0.9, z: player.feet.z }),
+        zones: debug.zones ? triggersAt(world, level, { x: player.feet.x, y: player.feet.y + 0.9, z: player.feet.z }) : [],
         chaser: chase.enabled
           ? {
               awareness: chaser.awareness,
@@ -475,16 +477,36 @@ async function main() {
     look.unlock();
   };
   /** Leave the machine. `relock` from inside a click or key press (browsers only allow pointer lock then). */
+  /**
+   * Leave the machine. `relock` from inside a click or key press: browsers only allow
+   * pointer lock during a user gesture, and never from Escape, so after Esc a small
+   * "click to resume" hint appears instead of the full pause menu.
+   */
   function closeMachine(relock: boolean) {
     if (!machinePanel.isOpen) return;
     machinePanel.close();
     round?.machine?.abandon();
-    if (relock) look.lock().catch(() => (overlay.hidden = false));
-    else if (!look.isLocked && !ended) overlay.hidden = false;
+    if (ended) return;
+    // lock() swallows refusals, so check whether it took.
+    const hintIfUnlocked = () => {
+      if (!look.isLocked && !ended && !machinePanel.isOpen) resume.hidden = false;
+    };
+    if (relock) void look.lock().then(() => setTimeout(hintIfUnlocked, 250));
+    else hintIfUnlocked();
   }
   machinePanel.onPress = () => {
     if (round?.machine?.closed) closeMachine(true);
   };
+  // E (the use key) or Backspace leaves the machine and re-captures the mouse at once.
+  window.addEventListener("keydown", (e) => {
+    const machine = round?.machine;
+    if (e.repeat || !machinePanel.isOpen || !machine || (e.code !== "KeyE" && e.code !== "Backspace")) return;
+    e.preventDefault();
+    machine.press(machine.screen === "done" ? "take" : "cancel");
+    if (machine.closed) closeMachine(true);
+  });
+  const resume = document.querySelector<HTMLElement>("#resume")!;
+  resume.addEventListener("click", () => void look.lock());
 
   const resize = () => {
     const w = window.innerWidth;
@@ -504,7 +526,8 @@ async function main() {
     void look.lock();
   });
   look.onLockChanged((locked) => {
-    overlay.hidden = locked || machinePanel.isOpen || ended;
+    if (locked) resume.hidden = true;
+    overlay.hidden = locked || machinePanel.isOpen || ended || !resume.hidden;
     if (!locked) input.releaseAll();
   });
   // Ctrl is a crouch key and Ctrl+W closes tabs: ask before leaving mid-game.
