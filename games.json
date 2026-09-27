@@ -1,0 +1,9 @@
+[
+  {
+    "slug": "tokyo-station-chase",
+    "title": "Tokyo Station Chase",
+    "description": "First-person chase through Tokyo Station: collect yen, buy a Shinkansen ticket and make the train before the salaryman catches you.",
+    "dir": "tokyo-station-chase",
+    "dist": "games/tokyo-station/dist"
+  }
+]

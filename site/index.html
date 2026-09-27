@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slop Games</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f5f1;
+        --fg: #1c1b19;
+        --muted: #6b6860;
+        --card: #ffffff;
+        --border: #dedad0;
+        --accent: #c2410c;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #151412;
+          --fg: #edeae3;
+          --muted: #9a968c;
+          --card: #1f1e1b;
+          --border: #34322d;
+          --accent: #fb923c;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main { max-width: 720px; margin: 0 auto; padding: 48px 16px; }
+      h1 { margin: 0 0 4px; font-size: 2rem; }
+      header p { margin: 0 0 32px; color: var(--muted); }
+      ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+      a {
+        display: block;
+        padding: 16px 20px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--card);
+        color: inherit;
+        text-decoration: none;
+      }
+      a:hover, a:focus-visible { border-color: var(--accent); }
+      h2 { margin: 0 0 4px; font-size: 1.15rem; color: var(--accent); }
+      li p { margin: 0; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Slop Games</h1>
+        <p>Browser games and prototypes. Desktop, keyboard and mouse.</p>
+      </header>
+      <ul>
+<!-- GAMES -->
+      </ul>
+    </main>
+  </body>
+</html>
