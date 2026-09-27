@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tokyo Station Chase: movement sandbox</title>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="crosshair"></div>
+    <div id="speed"></div>
+    <div id="perf"></div>
+    <div id="overlay">
+      <div class="card">
+        <h1>Movement sandbox</h1>
+        <p>M0 of Tokyo Station Chase: Source-style movement in a greybox test room.</p>
+        <span class="play">Click to play</span>
+        <dl>
+          <dt>WASD</dt><dd>Move</dd>
+          <dt>Mouse</dt><dd>Look</dd>
+          <dt>Space / scroll</dt><dd>Jump (scroll-wheel for bunny-hops)</dd>
+          <dt>C / Ctrl</dt><dd>Crouch (crouch in the air to crouch-jump)</dd>
+          <dt>Shift</dt><dd>Walk</dd>
+          <dt>R</dt><dd>Back to spawn</dd>
+          <dt>Esc</dt><dd>Release mouse · tuning panel top-right</dd>
+        </dl>
+      </div>
+    </div>
+    <div id="loading">Loading…</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

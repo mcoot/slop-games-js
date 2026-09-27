@@ -1,0 +1,21 @@
+:root {
+  --ink: #f4f6fa;
+  --panel: rgba(18, 22, 30, 0.72);
+  --accent: #e8b44a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #111; color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+#game { display: block; width: 100vw; height: 100vh; }
+#crosshair { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.6); pointer-events: none; }
+#speed { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); text-align: center; white-space: pre; font: 600 15px/1.5 ui-monospace, monospace; text-shadow: 0 1px 2px #000; pointer-events: none; }
+#perf { position: fixed; left: 10px; top: 8px; white-space: pre; font: 12px/1.5 ui-monospace, monospace; text-shadow: 0 1px 2px #000; pointer-events: none; }
+#overlay, #loading { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(8, 10, 14, 0.55); cursor: pointer; }
+#overlay[hidden] { display: none; }
+#loading { cursor: default; font-size: 18px; }
+.card { max-width: 440px; margin: 16px; padding: 22px 26px; border-radius: 12px; background: var(--panel); }
+.card h1 { margin: 0 0 4px; font-size: 22px; }
+.card p { margin: 0 0 14px; opacity: .85; }
+.card .play { display: inline-block; margin-bottom: 16px; padding: 8px 16px; border-radius: 8px; background: var(--accent); color: #1a1406; font-weight: 700; }
+.card dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
+.card dt { font-weight: 600; white-space: nowrap; }
+.card dd { margin: 0; opacity: .85; }

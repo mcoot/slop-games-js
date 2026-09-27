@@ -1,0 +1,12 @@
+{
+  "name": "@slop/tuning",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "lil-gui": "^0.21.0"
+  }
+}
