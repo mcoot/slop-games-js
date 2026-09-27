@@ -1,6 +1,7 @@
-import type { Surface } from "./movementSandbox";
+/** Greybox surface types, set on Blender objects with the `surface` custom property. */
+export type Surface = "floor" | "wall" | "stairs" | "ramp" | "steep" | "platform" | "prop";
 
-/** Greybox colour for each surface type (sRGB). Also used for the Blender materials. */
+/** Greybox colour for each surface type (sRGB). */
 export const surfaceColors: Record<Surface, number> = {
   floor: 0x8d9199,
   wall: 0xbdb5a4,

@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { FixedLoop, FrameStats } from "@slop/core";
 import { ActionInput, MouseLook, attachDomInput } from "@slop/input";
-import { createPhysicsWorld, type PhysicsWorld } from "@slop/physics";
-import { buildLevel, loadLevel, triggersAt, type Level } from "@slop/level-loader";
+import { createPhysicsWorld } from "@slop/physics";
+import { loadLevel, triggersAt } from "@slop/level-loader";
 import {
   FpsCameraRig,
   PlayerController,
@@ -13,9 +13,7 @@ import {
   type MovementSettings,
 } from "@slop/fps-controller";
 import { TuningPanel } from "@slop/tuning";
-import { movementSandbox, type Surface } from "./levels/movementSandbox";
-import { buildBoxLevel } from "./levels/buildBoxLevel";
-import { surfaceColors } from "./levels/surfaces";
+import { surfaceColors, type Surface } from "./levels/surfaces";
 import { gridMaterial } from "./gridMaterial";
 import { createHud } from "./hud";
 import "./style.css";
@@ -58,12 +56,8 @@ async function main() {
 
   const camera = new THREE.PerspectiveCamera(74, 1, 0.05, 400);
 
-  // Level from Blender, or the M0 in-code boxes with ?level=code.
   const world = await createPhysicsWorld();
-  const level: Level =
-    new URLSearchParams(location.search).get("level") === "code"
-      ? codeLevel(world)
-      : await loadLevel(world, SANDBOX_URL);
+  const level = await loadLevel(world, SANDBOX_URL);
   const materials = new Map<Surface, THREE.Material>();
   level.root.traverse((obj) => {
     const surface = obj.userData.surface as Surface | undefined;
@@ -205,23 +199,6 @@ async function main() {
 
   document.querySelector("#loading")?.remove();
   loop.start();
-}
-
-/** The M0 level built from code, as a fallback and for comparison. Labels become marker objects like in the .glb. */
-function codeLevel(world: PhysicsWorld): Level {
-  const root = buildBoxLevel(movementSandbox, () => new THREE.MeshBasicMaterial());
-  for (const def of movementSandbox.boxes) root.getObjectByName(def.name)!.userData.surface = def.surface;
-  for (const l of movementSandbox.labels) {
-    const marker = new THREE.Object3D();
-    marker.position.set(...l.position);
-    marker.userData.label = l.text;
-    root.add(marker);
-  }
-  const spawn = new THREE.Object3D();
-  spawn.name = "SPAWN_player";
-  spawn.position.set(movementSandbox.spawn.x, movementSandbox.spawn.y, movementSandbox.spawn.z);
-  root.add(spawn);
-  return buildLevel(world, root);
 }
 
 function textSprite(text: string, position: [number, number, number]): THREE.Sprite {

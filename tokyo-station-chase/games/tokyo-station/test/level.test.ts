@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { colliderDescForMesh, colliderKind, createPhysicsWorld, localBox, RAPIER } from "@slop/physics";
+import { colliderKind, createPhysicsWorld, localBox } from "@slop/physics";
 import { buildLevel, loadLevel, triggersAt } from "@slop/level-loader";
-import { movementSandbox } from "../src/levels/movementSandbox";
-import { buildBoxLevel } from "../src/levels/buildBoxLevel";
 import { makeSandbox, readGlb } from "./harness";
 
 describe("box collider detection", () => {
@@ -66,48 +64,30 @@ describe("level conventions", () => {
 });
 
 describe("Blender movement sandbox", () => {
-  const sanitize = THREE.PropertyBinding.sanitizeNodeName;
-
-  it("has exactly the colliders of the in-code sandbox", async () => {
+  it("gives every piece of level geometry an exact box collider", async () => {
     const world = await createPhysicsWorld();
     const level = await loadLevel(world, readGlb());
-    const code = buildBoxLevel(movementSandbox, () => new THREE.MeshBasicMaterial());
-    code.updateWorldMatrix(true, true);
-
-    expect(level.colliders).toHaveLength(movementSandbox.boxes.length);
-    for (const def of movementSandbox.boxes) {
-      const loaded = level.root.getObjectByName(sanitize(def.name));
-      const expected = code.getObjectByName(def.name);
-      expect(loaded, def.name).toBeInstanceOf(THREE.Mesh);
-      expect(loaded!.userData.surface).toBe(def.surface);
-      expect(colliderKind(loaded as THREE.Mesh), def.name).toBe("box");
-      const a = colliderDescForMesh(loaded as THREE.Mesh)!;
-      const b = colliderDescForMesh(expected as THREE.Mesh)!;
-      const ha = (a.shape as RAPIER.Cuboid).halfExtents;
-      const hb = (b.shape as RAPIER.Cuboid).halfExtents;
-      for (const k of ["x", "y", "z"] as const) {
-        expect(ha[k], `${def.name} half extent ${k}`).toBeCloseTo(hb[k], 4);
-        expect(a.translation[k], `${def.name} position ${k}`).toBeCloseTo(b.translation[k], 4);
-      }
-      // q and -q are the same rotation.
-      const dot = Math.abs(
-        a.rotation.x * b.rotation.x + a.rotation.y * b.rotation.y + a.rotation.z * b.rotation.z + a.rotation.w * b.rotation.w,
-      );
-      expect(dot, `${def.name} rotation`).toBeCloseTo(1, 5);
+    const meshes: THREE.Mesh[] = [];
+    level.root.traverse((o) => o instanceof THREE.Mesh && !o.name.startsWith("TRIG_") && meshes.push(o));
+    expect(meshes.length).toBeGreaterThan(50);
+    expect(level.colliders).toHaveLength(meshes.length);
+    for (const m of meshes) {
+      expect(colliderKind(m), m.name).toBe("box");
+      expect(m.userData.surface, m.name).toBeTypeOf("string");
     }
   });
 
   it("has the spawn, labels and stairs trigger", async () => {
     const world = await createPhysicsWorld();
     const level = await loadLevel(world, readGlb());
-    const s = movementSandbox.spawn;
-    expect(level.spawn.position.x).toBeCloseTo(s.x, 4);
-    expect(level.spawn.position.y).toBeCloseTo(s.y, 4);
-    expect(level.spawn.position.z).toBeCloseTo(s.z, 4);
+    expect(level.spawn.position.x).toBeCloseTo(0, 4);
+    expect(level.spawn.position.y).toBeCloseTo(0.05, 4);
+    expect(level.spawn.position.z).toBeCloseTo(10, 4);
     expect(level.spawn.yaw).toBeCloseTo(0, 5);
     const labels: string[] = [];
     level.root.traverse((o) => typeof o.userData.label === "string" && labels.push(o.userData.label));
-    expect(labels.sort()).toEqual(movementSandbox.labels.map((l) => l.text).sort());
+    expect(labels).toContain("Stairs 17 cm");
+    expect(labels).toContain("Crouch tunnel");
     expect(level.triggers.map((t) => t.name)).toEqual(["stairs-top"]);
   });
 

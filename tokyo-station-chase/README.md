@@ -90,17 +90,14 @@ underscores, so `jumpbox-0.5` becomes `jumpbox-05` in the game.
 
 ### The movement sandbox
 
-`movement_sandbox.blend` was generated from the M0 box definitions in
-`src/levels/movementSandbox.ts` by `pnpm --filter @slop/tokyo-station generate-sandbox`
-(needs Node 22.18+ for TypeScript). A test checks every collider in the .glb matches
-those definitions, and all movement tests run against the .glb. `?level=code` loads
-the old in-code version for comparison. **The generator overwrites the .blend**: once
-you edit the .blend by hand, delete the code definitions, the generator, the
-`?level=code` fallback and the parity test.
+`assets-src/levels/movement_sandbox.blend` is the test room below. The movement tests
+run against its exported .glb and rely on its layout (stair positions, box heights,
+the tunnel), so if you move things around, expect to update
+`games/tokyo-station/test/movement.test.ts`.
 
 ## Test room
 
-Stairs (17 cm station stairs, then 20 cm escalator-like steps), ramps at 15°/30°/44°
+`movement_sandbox.blend` has stairs (17 cm station stairs, then 20 cm escalator-like steps), ramps at 15°/30°/44°
 (walkable) and 50° (too steep, you slide), jump boxes from 0.5 to 2.1 m (1.3 m needs a
 crouch-jump, 1.7 m is out of reach), gap jumps from 2 to 6 m, a 1.25 m crouch tunnel,
 a low-ceiling pillar hall and a long runway with 10 m markers for bunny-hopping.
