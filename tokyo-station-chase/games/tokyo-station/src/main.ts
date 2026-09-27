@@ -42,8 +42,12 @@ const bindings: Record<Action, string[]> = {
   reset: ["KeyR"],
 };
 
-/** Exported from assets-src/levels/movement_sandbox.blend by `pnpm export-levels`. */
-const SANDBOX_URL = "levels/movement_sandbox.glb";
+/** Levels exported from assets-src/levels/*.blend by `pnpm export-levels`. Pick with ?level=<name>. */
+const LEVELS: Record<string, string> = {
+  station: "levels/tokyo_station.glb",
+  sandbox: "levels/movement_sandbox.glb",
+};
+const LEVEL_URL = LEVELS[new URLSearchParams(location.search).get("level") ?? ""] ?? LEVELS.station!;
 
 async function main() {
   const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
@@ -87,7 +91,7 @@ async function main() {
     level.root.add(...labels);
     scene.add(level.root);
   };
-  let level = await loadLevel(world, SANDBOX_URL);
+  let level = await loadLevel(world, LEVEL_URL);
   dress(level);
   world.step();
 
@@ -300,7 +304,7 @@ async function main() {
   if (import.meta.hot) {
     let reloading = Promise.resolve();
     import.meta.hot.on("blender-levels:update", ({ url }: { url: string }) => {
-      if (url !== SANDBOX_URL) return;
+      if (url !== LEVEL_URL) return;
       reloading = reloading.then(async () => {
         try {
           const next = await loadLevel(world, `${url}?t=${Date.now()}`);

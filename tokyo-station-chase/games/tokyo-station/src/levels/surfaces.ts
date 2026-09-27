@@ -1,5 +1,5 @@
 /** Greybox surface types, set on Blender objects with the `surface` custom property. */
-export type Surface = "floor" | "wall" | "stairs" | "ramp" | "steep" | "platform" | "prop";
+export type Surface = "floor" | "wall" | "stairs" | "ramp" | "steep" | "platform" | "prop" | "shop" | "machine" | "gate" | "train";
 
 /** Greybox colour for each surface type (sRGB). */
 export const surfaceColors: Record<Surface, number> = {
@@ -10,4 +10,8 @@ export const surfaceColors: Record<Surface, number> = {
   steep: 0xc56c5c,
   platform: 0xa3aab6,
   prop: 0xd9b45a,
+  shop: 0xc98f5a,
+  machine: 0x3f8f6b,
+  gate: 0x7d8594,
+  train: 0xeef1f4,
 };
