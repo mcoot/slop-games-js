@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { FixedLoop, FrameStats } from "@slop/core";
 import { ActionInput, MouseLook, attachDomInput } from "@slop/input";
-import { addStaticColliders, createPhysicsWorld } from "@slop/physics";
+import { createPhysicsWorld, type PhysicsWorld } from "@slop/physics";
+import { buildLevel, loadLevel, triggersAt, type Level } from "@slop/level-loader";
 import {
   FpsCameraRig,
   PlayerController,
@@ -14,6 +15,7 @@ import {
 import { TuningPanel } from "@slop/tuning";
 import { movementSandbox, type Surface } from "./levels/movementSandbox";
 import { buildBoxLevel } from "./levels/buildBoxLevel";
+import { surfaceColors } from "./levels/surfaces";
 import { gridMaterial } from "./gridMaterial";
 import { createHud } from "./hud";
 import "./style.css";
@@ -31,15 +33,8 @@ const bindings: Record<Action, string[]> = {
   reset: ["KeyR"],
 };
 
-const surfaceColors: Record<Surface, number> = {
-  floor: 0x8d9199,
-  wall: 0xbdb5a4,
-  stairs: 0x6f90b5,
-  ramp: 0x80ad7c,
-  steep: 0xc56c5c,
-  platform: 0xa3aab6,
-  prop: 0xd9b45a,
-};
+/** Exported from assets-src/levels/movement_sandbox.blend by `pnpm export-levels`. */
+const SANDBOX_URL = "levels/movement_sandbox.glb";
 
 async function main() {
   const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
@@ -63,16 +58,26 @@ async function main() {
 
   const camera = new THREE.PerspectiveCamera(74, 1, 0.05, 400);
 
-  // Level: meshes first, then physics colliders from the same meshes.
+  // Level from Blender, or the M0 in-code boxes with ?level=code.
   const world = await createPhysicsWorld();
+  const level: Level =
+    new URLSearchParams(location.search).get("level") === "code"
+      ? codeLevel(world)
+      : await loadLevel(world, SANDBOX_URL);
   const materials = new Map<Surface, THREE.Material>();
-  const level = buildBoxLevel(movementSandbox, (surface) => {
-    if (!materials.has(surface)) materials.set(surface, gridMaterial(surfaceColors[surface]));
-    return materials.get(surface)!;
+  level.root.traverse((obj) => {
+    const surface = obj.userData.surface as Surface | undefined;
+    if (obj instanceof THREE.Mesh && surface && surface in surfaceColors) {
+      if (!materials.has(surface)) materials.set(surface, gridMaterial(surfaceColors[surface]));
+      obj.material = materials.get(surface)!;
+      obj.castShadow = surface !== "floor";
+      obj.receiveShadow = true;
+    }
+    if (typeof obj.userData.label === "string") {
+      scene.add(textSprite(obj.userData.label, obj.getWorldPosition(new THREE.Vector3()).toArray()));
+    }
   });
-  scene.add(level);
-  addStaticColliders(world, level);
-  for (const l of movementSandbox.labels) scene.add(textSprite(l.text, l.position));
+  scene.add(level.root);
   world.step();
 
   // Settings objects are shared by reference with the tuning panel.
@@ -80,9 +85,10 @@ async function main() {
   const cameraFeel = { ...defaultCameraFeel };
   const simulation = { tickRate: 66.67 };
 
-  const player = new PlayerController(world, movement, movementSandbox.spawn);
+  const player = new PlayerController(world, movement, level.spawn.position);
   const rig = new FpsCameraRig(camera, cameraFeel);
   const look = new MouseLook(canvas);
+  look.yaw = level.spawn.yaw;
   const input = new ActionInput<Action>(bindings);
   attachDomInput(input, canvas, () => look.isLocked);
 
@@ -133,8 +139,8 @@ async function main() {
     tickRate: simulation.tickRate,
     tick(dt) {
       if (input.consumePresses("reset") > 0 || player.feet.y < -20) {
-        player.teleport(movementSandbox.spawn);
-        look.yaw = 0;
+        player.teleport(level.spawn.position);
+        look.yaw = level.spawn.yaw;
         look.pitch = 0;
         topSpeed = 0;
       }
@@ -170,6 +176,7 @@ async function main() {
         worstMs: stats.worstMs,
         rawInput: look.rawInput,
         tickRate: loop.tickRate,
+        zones: triggersAt(world, level, { x: player.feet.x, y: player.feet.y + 0.9, z: player.feet.z }),
       });
     },
   });
@@ -198,6 +205,23 @@ async function main() {
 
   document.querySelector("#loading")?.remove();
   loop.start();
+}
+
+/** The M0 level built from code, as a fallback and for comparison. Labels become marker objects like in the .glb. */
+function codeLevel(world: PhysicsWorld): Level {
+  const root = buildBoxLevel(movementSandbox, () => new THREE.MeshBasicMaterial());
+  for (const def of movementSandbox.boxes) root.getObjectByName(def.name)!.userData.surface = def.surface;
+  for (const l of movementSandbox.labels) {
+    const marker = new THREE.Object3D();
+    marker.position.set(...l.position);
+    marker.userData.label = l.text;
+    root.add(marker);
+  }
+  const spawn = new THREE.Object3D();
+  spawn.name = "SPAWN_player";
+  spawn.position.set(movementSandbox.spawn.x, movementSandbox.spawn.y, movementSandbox.spawn.z);
+  root.add(spawn);
+  return buildLevel(world, root);
 }
 
 function textSprite(text: string, position: [number, number, number]): THREE.Sprite {

@@ -5,7 +5,7 @@ the chaser, collect enough yen, buy a Shinkansen ticket on a realistic machine, 
 through the gates and board a train.
 
 Milestones: M0 movement sandbox → M1 Blender pipeline → M2 chaser → M3 core loop →
-M4 Tokyo Station slice. **This is M0.**
+M4 Tokyo Station slice. **M0 and M1 are done.**
 
 ## Running it
 
@@ -16,6 +16,7 @@ pnpm dev        # http://localhost:5173
 pnpm test       # headless movement tests (Rapier runs in Node)
 pnpm typecheck
 pnpm build      # static site in games/tokyo-station/dist
+pnpm export-levels  # re-export Blender levels to .glb (needs Blender, see "Levels")
 ```
 
 Click to capture the mouse. Esc releases it and opens the **Tuning** panel
@@ -42,6 +43,8 @@ only `games/tokyo-station` knows about Tokyo, yen or trains.
 | `@slop/physics` | Rapier (WASM) setup; static colliders from three.js meshes (boxes become cuboids, everything else a trimesh) |
 | `@slop/fps-controller` | Source movement: friction, accelerate, air-accelerate, jumping, crouching and crouch-jumping, StepMove (stairs and ramps at full speed), StayOnGround, velocity clipping. Plus the camera rig (FOV in Source 4:3 terms, stair smoothing, landing dip, optional head bob) |
 | `@slop/tuning` | lil-gui tuning panel with presets, browser save and JSON import/export |
+| `@slop/level-loader` | Loads a Blender-exported .glb as a level: meshes, colliders, spawn point and trigger volumes, from naming conventions (see "Levels") |
+| `tools/` | Headless Blender export (`export-levels.mjs`, `blender/export_gltf.py`) |
 | `games/tokyo-station` | The game. For now: the greybox movement sandbox, HUD and wiring |
 
 ## Conventions
@@ -53,6 +56,47 @@ only `games/tokyo-station` knows about Tokyo, yen or trains.
   Mouse look is applied every rendered frame, never quantised to ticks.
 - Movement numbers live in `MovementSettings` (`packages/fps-controller/src/settings.ts`).
   "Tokyo default" is the starting feel; CS:S-like and HL2-like presets are there to compare.
+
+## Levels
+
+Levels are made in Blender (5.x) and exported to glTF binary (.glb), which the game
+loads at runtime. Sources live in `games/tokyo-station/assets-src/levels/*.blend`;
+`pnpm export-levels` writes `games/tokyo-station/public/levels/<name>.glb`. Both are
+committed, so only people editing levels need Blender. The export script finds
+Blender via `$BLENDER`, then `blender` on your PATH, then `/Applications/Blender.app`.
+
+After editing a .blend: save, run `pnpm export-levels`, then `pnpm test`.
+
+### Authoring conventions
+
+Blender is Z-up; the game is Y-up. The exporter converts, so just model with Z up.
+The player's forward at yaw 0 is Blender **+Y**. 1 Blender unit = 1 m.
+
+| In Blender | In the game |
+| --- | --- |
+| Any mesh | Drawn and solid. A mesh that is exactly a box (like the default cube, with any location, rotation and scale) gets an exact box collider; anything else a triangle-mesh collider |
+| Custom property `collider` = `box` / `mesh` / `none` | Overrides that choice. `none` makes a mesh decoration only |
+| `COL_<anything>` mesh | Collision only, not drawn. Put simple boxes under detailed art |
+| `TRIG_<name>` mesh | Invisible trigger volume (a box, or the convex hull of any other shape). Never blocks the player; the HUD shows `zone <name>` while you're inside |
+| `SPAWN_player` empty | Where the player's feet start, facing the empty's +Y axis |
+| Custom property `surface` | Greybox material for the mesh: `floor`, `wall`, `stairs`, `ramp`, `steep`, `platform` or `prop`. Meshes without it keep their Blender material (base colour etc. via glTF) |
+| Empty with custom property `label` | A floating text label |
+
+Custom properties are set in Object Properties → Custom Properties, on the object
+(not the mesh data). Hidden objects are still exported.
+
+Names: three.js drops `.`, `:`, `/`, `[` and `]` from object names and turns spaces into
+underscores, so `jumpbox-0.5` becomes `jumpbox-05` in the game.
+
+### The movement sandbox
+
+`movement_sandbox.blend` was generated from the M0 box definitions in
+`src/levels/movementSandbox.ts` by `pnpm --filter @slop/tokyo-station generate-sandbox`
+(needs Node 22.18+ for TypeScript). A test checks every collider in the .glb matches
+those definitions, and all movement tests run against the .glb. `?level=code` loads
+the old in-code version for comparison. **The generator overwrites the .blend**: once
+you edit the .blend by hand, delete the code definitions, the generator, the
+`?level=code` fallback and the parity test.
 
 ## Test room
 
@@ -66,3 +110,5 @@ a low-ceiling pillar hall and a long runway with 10 m markers for bunny-hopping.
 - The bundle is ~5 MB (1.8 MB gzipped), mostly Rapier's inlined WASM. Fine for now;
   switch to the non-compat Rapier build if load time matters.
 - No ladders, water or surf yet.
+- Nothing checks that the committed .glb is up to date with its .blend: run
+  `pnpm export-levels` after editing a level.

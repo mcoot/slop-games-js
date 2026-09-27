@@ -2,7 +2,10 @@
  * M0 greybox: a test room for tuning movement. Pure data so tests can load it
  * without a browser. Units are metres, Y up, the player spawns facing -Z.
  *
- * This is hand-authored in code only until the Blender pipeline (M1) exists.
+ * The game now loads this level from Blender (assets-src/levels/movement_sandbox.blend,
+ * exported to public/levels/movement_sandbox.glb). These definitions generated that
+ * .blend (`pnpm generate-sandbox`) and remain as the `?level=code` fallback and the
+ * reference for the parity test. Once the .blend is edited by hand, delete them.
  */
 export type Surface = "floor" | "wall" | "stairs" | "ramp" | "steep" | "platform" | "prop";
 
@@ -19,10 +22,13 @@ export interface SandboxLevel {
   spawn: { x: number; y: number; z: number };
   boxes: BoxDef[];
   labels: { text: string; position: [number, number, number] }[];
+  /** Sensor volumes. Only the Blender level has them (the in-code fallback ignores them). */
+  triggers: { name: string; center: [number, number, number]; size: [number, number, number] }[];
 }
 
 const boxes: BoxDef[] = [];
 const labels: SandboxLevel["labels"] = [];
+const triggers: SandboxLevel["triggers"] = [];
 const box = (name: string, surface: Surface, center: BoxDef["center"], size: BoxDef["size"], pitchDeg?: number) =>
   boxes.push({ name, surface, center, size, pitchDeg });
 const label = (text: string, x: number, y: number, z: number) => labels.push({ text, position: [x, y, z] });
@@ -54,6 +60,7 @@ box("wall-w", "wall", [-60.5, 3, -40], [1, 6, 120]);
     z -= 0.4;
   }
   box("stairs-top", "platform", [x, top / 2, z - 4], [4, top, 8]);
+  triggers.push({ name: "stairs-top", center: [x, top + 1, z - 4], size: [4, 2, 8] });
 }
 
 // Ramps rising 3 m towards -Z. 50° is past the walkable limit (45.6°) so you slide.
@@ -128,4 +135,5 @@ export const movementSandbox: SandboxLevel = {
   spawn: { x: 0, y: 0.05, z: 10 },
   boxes,
   labels,
+  triggers,
 };
