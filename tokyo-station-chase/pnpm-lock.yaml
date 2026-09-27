@@ -94,6 +94,8 @@ importers:
 
   packages/input: {}
 
+  packages/interaction: {}
+
   packages/level-loader:
     dependencies:
       '@dimforge/rapier3d-compat':
@@ -120,6 +122,8 @@ importers:
       lil-gui:
         specifier: ^0.21.0
         version: 0.21.0
+
+  packages/ui-screens: {}
 
 packages:
 
