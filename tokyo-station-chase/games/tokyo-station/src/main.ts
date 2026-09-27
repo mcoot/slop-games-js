@@ -13,6 +13,17 @@ import {
   type MovementSettings,
 } from "@slop/fps-controller";
 import { TuningPanel } from "@slop/tuning";
+import {
+  Chaser,
+  HintDirector,
+  MovementNoise,
+  Navigation,
+  NoiseBus,
+  initNavigation,
+  type NavAgent,
+} from "@slop/ai";
+import { NavMeshHelper } from "@recast-navigation/three";
+import { ChaserView } from "./chaserView";
 import { surfaceColors, type Surface } from "./levels/surfaces";
 import { gridMaterial } from "./gridMaterial";
 import { createHud } from "./hud";
@@ -84,8 +95,48 @@ async function main() {
   const movement: MovementSettings = { ...tokyoMovement };
   const cameraFeel = { ...defaultCameraFeel };
   const simulation = { tickRate: 66.67 };
+  const chase = { enabled: true, footstepVolume: 0.8, showNavmesh: false };
 
   const player = new PlayerController(world, movement, level.spawn.position);
+
+  // The chaser walks the same navmesh rules as the player's hull.
+  await initNavigation();
+  const agent = (): NavAgent => ({
+    radius: movement.hullHalfWidth,
+    height: movement.standHeight,
+    stepHeight: movement.stepHeight,
+    maxSlopeDeg: movement.maxWalkableSlopeDeg,
+  });
+  let nav = Navigation.build(level.solids, agent());
+  const director = new HintDirector();
+  const chaserSpawn = () => level.markers.get("chaser_spawn")?.[0] ?? { position: { x: 0, y: 0, z: -40 }, yaw: 0 };
+  const chokepoints = () => (level.markers.get("chokepoint") ?? []).map((m) => m.position);
+  director.chokepoints = chokepoints();
+  const chaser = new Chaser(world, nav, chaserSpawn(), { director, movement: { ...movement } });
+  const chaserView = new ChaserView(movement.standHeight, movement.hullHalfWidth);
+  scene.add(chaserView.root);
+  const noise = new MovementNoise();
+  const noises = new NoiseBus();
+  let navHelper: NavMeshHelper | null = null;
+  const updateNavHelper = () => {
+    navHelper?.removeFromParent();
+    navHelper = chase.showNavmesh ? new NavMeshHelper(nav.mesh) : null;
+    if (navHelper) {
+      navHelper.position.y = 0.02;
+      scene.add(navHelper);
+    }
+  };
+  let caught = false;
+  const caughtScreen = document.querySelector<HTMLElement>("#caught")!;
+  const newRound = () => {
+    caught = false;
+    caughtScreen.hidden = true;
+    player.teleport(level.spawn.position);
+    look.yaw = level.spawn.yaw;
+    look.pitch = 0;
+    topSpeed = 0;
+    chaser.respawn(chaserSpawn());
+  };
   const rig = new FpsCameraRig(camera, cameraFeel);
   const look = new MouseLook(canvas);
   look.yaw = level.spawn.yaw;
@@ -123,13 +174,49 @@ async function main() {
     mPitch: true,
     invertY: true,
   });
+  tuning.addGroup("Chaser", chase, { enabled: true, footstepVolume: [0, 1, 0.05], showNavmesh: true });
+  tuning.addGroup("Chaser behaviour", chaser.settings, {
+    chaseSpeed: [1, 12, 0.05],
+    searchSpeed: [1, 12, 0.05],
+    catchUpDistance: [5, 100, 1],
+    catchUpMultiplier: [1, 2.5, 0.05],
+    sightRange: [5, 120, 1],
+    fovDeg: [30, 240, 1],
+    nearSense: [0, 6, 0.1],
+    reactionTime: [0, 2, 0.05],
+    loseSightGrace: [0, 3, 0.05],
+    predictTime: [0, 3, 0.05],
+    hearingThroughWalls: [0, 1, 0.05],
+    lookAroundTime: [0, 8, 0.1],
+    catchRadius: [0.4, 2, 0.05],
+  });
+  tuning.addGroup("Chaser director", director.settings, {
+    interval: [1, 20, 0.5],
+    radiusStart: [5, 100, 1],
+    radiusMin: [0, 50, 1],
+    shrinkRate: [0, 5, 0.05],
+  });
+  tuning.addGroup("Player noise", noise.settings, {
+    runRadius: [0, 40, 0.5],
+    walkRadius: [0, 20, 0.5],
+    crouchRadius: [0, 20, 0.5],
+    landingRadiusPerSpeed: [0, 10, 0.1],
+    jumpRadius: [0, 40, 0.5],
+    stride: [0.5, 4, 0.1],
+  });
   tuning.addGroup("Simulation", simulation, { tickRate: [20, 144, 1] });
   tuning.addPersistence();
   tuning.load();
-  tuning.onChange(() => {
+  const applyTuning = () => {
     player.applySettings();
+    // The chaser moves by the player's rules (it sets its own run speed).
+    Object.assign(chaser.body.settings, movement);
+    chaser.body.applySettings();
     loop.tickRate = simulation.tickRate;
-  });
+    updateNavHelper();
+    chaserView.root.visible = chase.enabled;
+  };
+  tuning.onChange(applyTuning);
 
   const hud = createHud();
   const stats = new FrameStats();
@@ -138,12 +225,12 @@ async function main() {
   const loop = new FixedLoop({
     tickRate: simulation.tickRate,
     tick(dt) {
-      if (input.consumePresses("reset") > 0 || player.feet.y < -20) {
+      if (input.consumePresses("reset") > 0) newRound();
+      if (player.feet.y < -20) {
         player.teleport(level.spawn.position);
         look.yaw = level.spawn.yaw;
-        look.pitch = 0;
-        topSpeed = 0;
       }
+      if (caught) return;
       const axis = (a: Action, b: Action) => (input.isDown(a) ? 1 : 0) - (input.isDown(b) ? 1 : 0);
       player.tick(
         {
@@ -157,6 +244,27 @@ async function main() {
         },
         dt,
       );
+      noise.update(player, noises);
+      // The chaser waits while the menu is open.
+      if (chase.enabled && look.isLocked) {
+        const p = player.feet;
+        chaser.update(
+          dt,
+          {
+            feet: { x: p.x, y: p.y, z: p.z },
+            eye: { x: p.x, y: p.y + player.eyeHeight, z: p.z },
+            velocity: { ...player.velocity },
+            colliderHandle: player.colliderHandle,
+          },
+          noises.drain(),
+        );
+        if (chaser.events.caught) {
+          caught = true;
+          caughtScreen.hidden = false;
+        }
+      } else {
+        noises.drain();
+      }
       world.step();
       rig.afterTick(player);
       topSpeed = Math.max(topSpeed, player.horizontalSpeed);
@@ -164,6 +272,7 @@ async function main() {
     render(alpha, frameDt) {
       stats.push(frameDt);
       rig.update(player, alpha, look.yaw, look.pitch, frameDt);
+      chaserView.update(chaser, alpha, frameDt, camera, chase.enabled ? chase.footstepVolume : 0);
       renderer.render(scene, camera);
       hud.update({
         speed: player.horizontalSpeed,
@@ -177,6 +286,12 @@ async function main() {
         rawInput: look.rawInput,
         tickRate: loop.tickRate,
         zones: triggersAt(world, level, { x: player.feet.x, y: player.feet.y + 0.9, z: player.feet.z }),
+        chaser: chase.enabled
+          ? {
+              awareness: chaser.awareness,
+              distance: Math.hypot(chaser.body.feet.x - player.feet.x, chaser.body.feet.z - player.feet.z),
+            }
+          : null,
       });
     },
   });
@@ -199,6 +314,11 @@ async function main() {
           level = next;
           dress(level);
           world.step(); // so the next tick's ground checks see the new colliders
+          nav.dispose();
+          nav = Navigation.build(level.solids, agent());
+          chaser.setNavigation(nav);
+          director.chokepoints = chokepoints();
+          updateNavHelper();
           console.info(`[levels] reloaded ${url}`);
         } catch (err) {
           console.error(`[levels] couldn't reload ${url}`, err);
@@ -222,7 +342,10 @@ async function main() {
 
   // Click to play; Esc (handled by the browser) releases the mouse and shows the menu.
   const overlay = document.querySelector<HTMLElement>("#overlay")!;
-  overlay.addEventListener("click", () => void look.lock());
+  overlay.addEventListener("click", () => {
+    chaserView.unlockAudio();
+    void look.lock();
+  });
   look.onLockChanged((locked) => {
     overlay.hidden = locked;
     if (!locked) input.releaseAll();
@@ -232,6 +355,7 @@ async function main() {
     if (look.isLocked) e.preventDefault();
   });
 
+  applyTuning();
   document.querySelector("#loading")?.remove();
   loop.start();
 }

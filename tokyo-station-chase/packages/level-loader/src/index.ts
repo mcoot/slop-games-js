@@ -52,6 +52,8 @@ export interface Level {
   markers: Map<string, LevelMarker[]>;
   /** Solid colliders created for the level. */
   colliders: RAPIER.Collider[];
+  /** The meshes those colliders came from (e.g. for building a navmesh). */
+  solids: THREE.Mesh[];
   triggers: LevelTrigger[];
 }
 
@@ -66,6 +68,7 @@ export async function loadLevel(world: PhysicsWorld, source: string | ArrayBuffe
 export function buildLevel(world: PhysicsWorld, root: THREE.Object3D): Level {
   root.updateWorldMatrix(true, true);
   const colliders: RAPIER.Collider[] = [];
+  const solids: THREE.Mesh[] = [];
   const triggers: LevelTrigger[] = [];
   const markers = new Map<string, LevelMarker[]>();
 
@@ -91,7 +94,9 @@ export function buildLevel(world: PhysicsWorld, root: THREE.Object3D): Level {
 
     if (name.endsWith(COLLISION_SUFFIX)) obj.visible = false;
     const desc = colliderDescForMesh(obj);
-    if (desc) colliders.push(world.createCollider(desc));
+    if (!desc) return;
+    colliders.push(world.createCollider(desc));
+    solids.push(obj);
   });
 
   const spawn = markers.get(PLAYER_SPAWN)?.[0];
@@ -100,6 +105,7 @@ export function buildLevel(world: PhysicsWorld, root: THREE.Object3D): Level {
     spawn: spawn ? { position: spawn.position, yaw: spawn.yaw } : { position: { x: 0, y: 0, z: 0 }, yaw: 0 },
     markers,
     colliders,
+    solids,
     triggers,
   };
 }
@@ -109,6 +115,7 @@ export function disposeLevel(world: PhysicsWorld, level: Level): void {
   for (const c of level.colliders) world.removeCollider(c, false);
   for (const t of level.triggers) world.removeCollider(t.collider, false);
   level.colliders.length = 0;
+  level.solids.length = 0;
   level.triggers.length = 0;
   level.root.removeFromParent();
   level.root.traverse((obj) => {

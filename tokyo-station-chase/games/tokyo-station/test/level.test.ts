@@ -117,7 +117,9 @@ describe("Blender movement sandbox", () => {
     level.root.traverse((o) => typeof o.userData.label === "string" && labels.push(o.userData.label));
     expect(labels).toContain("Stairs 17 cm");
     expect(labels).toContain("Crouch tunnel");
-    expect([...level.markers.keys()]).toEqual(["player_spawn"]);
+    expect([...level.markers.keys()].sort()).toEqual(["chaser_spawn", "chokepoint", "player_spawn"]);
+    expect(Math.abs(level.markers.get("chaser_spawn")![0]!.yaw)).toBeCloseTo(Math.PI, 4); // facing back towards the player (±π)
+    expect(level.markers.get("chokepoint")!.length).toBeGreaterThanOrEqual(3);
     expect(level.triggers.map((t) => t.name)).toEqual(["stairs-top"]);
   });
 

@@ -11,12 +11,14 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
-    "three": "^0.186.1",
+    "@recast-navigation/three": "0.43.1",
+    "@slop/ai": "workspace:*",
     "@slop/core": "workspace:*",
-    "@slop/input": "workspace:*",
-    "@slop/physics": "workspace:*",
     "@slop/fps-controller": "workspace:*",
+    "@slop/input": "workspace:*",
+    "@slop/level-loader": "workspace:*",
+    "@slop/physics": "workspace:*",
     "@slop/tuning": "workspace:*",
-    "@slop/level-loader": "workspace:*"
+    "three": "^0.186.1"
   }
 }

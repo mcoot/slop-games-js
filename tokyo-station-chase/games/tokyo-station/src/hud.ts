@@ -11,12 +11,14 @@ export interface HudState {
   tickRate: number;
   /** Trigger volumes the player is in. */
   zones: string[];
+  chaser: { awareness: "unaware" | "searching" | "hunting"; distance: number } | null;
 }
 
 /** Debug HUD: speedometer bottom-centre, perf top-left. Updated at most ~15 times a second to keep DOM work cheap. */
 export function createHud() {
   const speed = document.querySelector<HTMLElement>("#speed")!;
   const perf = document.querySelector<HTMLElement>("#perf")!;
+  const threat = document.querySelector<HTMLElement>("#threat")!;
   let last = 0;
   return {
     update(s: HudState) {
@@ -27,6 +29,11 @@ export function createHud() {
         `${s.speed.toFixed(2)} m/s  ·  ${Math.round(s.speedUnits)} u/s\n` +
         `top ${s.topSpeed.toFixed(2)} m/s  ·  ${s.grounded ? "ground" : "air"}${s.ducked ? " · crouched" : ""}` +
         (s.zones.length ? `\nzone ${s.zones.join(", ")}` : "");
+      threat.hidden = !s.chaser;
+      if (s.chaser) {
+        threat.dataset.awareness = s.chaser.awareness;
+        threat.textContent = `${s.chaser.awareness.toUpperCase()}  ·  ${Math.round(s.chaser.distance)} m`;
+      }
       perf.textContent =
         `${Math.round(s.fps)} fps  avg ${s.avgMs.toFixed(1)} ms  worst ${s.worstMs.toFixed(1)} ms\n` +
         `tick ${s.tickRate.toFixed(1)} Hz  ·  mouse ${s.rawInput ? "raw" : "accelerated"}`;

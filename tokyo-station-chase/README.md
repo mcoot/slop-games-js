@@ -5,7 +5,7 @@ the chaser, collect enough yen, buy a Shinkansen ticket on a realistic machine, 
 through the gates and board a train.
 
 Milestones: M0 movement sandbox → M1 Blender pipeline → M2 chaser → M3 core loop →
-M4 Tokyo Station slice. **M0 and M1 are done.**
+M4 Tokyo Station slice. **M0–M2 are done.**
 
 ## Running it
 
@@ -29,7 +29,7 @@ Click to capture the mouse. Esc releases it and opens the **Tuning** panel
 | Space / mouse wheel | Jump (the wheel is how you bunny-hop) |
 | C / Left Ctrl | Crouch (crouch in the air, or together with jump, to crouch-jump) |
 | Shift | Walk |
-| R | Back to spawn |
+| R | Restart: you and the chaser back to your spawns |
 
 ## Layout
 
@@ -44,6 +44,7 @@ only `games/tokyo-station` knows about Tokyo, yen or trains.
 | `@slop/fps-controller` | Source movement: friction, accelerate, air-accelerate, jumping, crouching and crouch-jumping, StepMove (stairs and ramps at full speed), StayOnGround, velocity clipping. Plus the camera rig (FOV in Source 4:3 terms, stair smoothing, landing dip, optional head bob) |
 | `@slop/tuning` | lil-gui tuning panel with presets, browser save and JSON import/export |
 | `@slop/level-loader` | Loads a Blender-exported .glb as a level: meshes, colliders, markers (spawns etc.) and trigger volumes, from naming conventions (see "Levels"). Can dispose a level for hot reload |
+| `@slop/ai` | Navmesh (Recast via recast-navigation-js), perception (sight, noise), search directors and the chaser. Game-agnostic: works with any level and `PlayerController` |
 | `tools/` | Headless Blender export (`export-levels.mjs`, `blender/export_gltf.py`) and the Vite plugin that hot-reloads levels |
 | `games/tokyo-station` | The game. For now: the greybox movement sandbox, HUD and wiring |
 
@@ -87,7 +88,10 @@ The player's forward at yaw 0 is Blender **+Y**. 1 Blender unit = 1 m.
 | Mesh named `<anything>_col` | Collision only, not drawn. Put simple boxes under detailed art (and set `collider` = `none` on the art) |
 | Mesh named `<name>_col_trigger` | Invisible trigger volume (a box, or the convex hull of any other shape). Never blocks the player; the HUD shows `zone <name>` while you're inside |
 | Empty with custom property `type` | A marker. The loader returns markers grouped by type, each with a position and a facing (the empty's +Y axis) |
-| Marker `type` = `player_spawn` | Where the player's feet start, facing the empty's +Y axis. Planned types: `chaser_spawn`, `money_spawn`, `interact`, `train_door` |
+| Marker `type` = `player_spawn` | Where the player's feet start, facing the empty's +Y axis |
+| Marker `type` = `chaser_spawn` | Where the chaser starts |
+| Marker `type` = `chokepoint` | A place a fleeing player will probably pass (in M3: ticket machines, gates, platforms). The chaser lies in wait here when it has lost you |
+| Other marker types | Planned: `money_spawn`, `interact`, `train_door` |
 | Custom property `surface` | Greybox material for the mesh: `floor`, `wall`, `stairs`, `ramp`, `steep`, `platform` or `prop`. Meshes without it keep their Blender material (base colour etc. via glTF) |
 | Empty with custom property `label` | A floating text label |
 
@@ -106,6 +110,36 @@ run against its exported .glb and rely on its layout (stair positions, box heigh
 the tunnel), so if you move things around, expect to update
 `games/tokyo-station/test/movement.test.ts`.
 
+## The chaser (M2)
+
+A salaryman who must not be escaped for good, but who doesn't cheat. Everything below
+is in the Tuning panel (groups "Chaser", "Chaser behaviour", "Chaser director",
+"Player noise"); the HUD shows whether he's **unaware**, **searching** or **hunting**,
+and how far away he is.
+
+- **Body.** He walks with the same Source controller as you, on a navmesh built from
+  the level's collision with your hull, step height and slope limit (rebuilt on level
+  hot reload). He climbs stairs and ramps but can't jump or crouch, so gaps, tall boxes
+  and crawlspaces shake him off. If he can see you but can't reach you, he waits at the
+  nearest point he can reach.
+- **Sight.** 45 m, 120° field of view, blocked by geometry; within 2 m he notices you
+  whatever way he faces. He stoops to look into low spaces. A short reaction time
+  before he commits when he wasn't already chasing.
+- **Hearing.** Your movement makes noise events: running footsteps carry ~15 m,
+  walking (Shift) and crouching almost nothing, jumps 8 m and landings more the harder
+  you land (bunny-hop chains are loud). Walls muffle noise. Anything can emit noise
+  through `NoiseBus` (ticket machines and gates will in M3).
+- **Losing you.** When you break line of sight he heads to where you were going
+  (last seen position plus velocity), looks around, then starts searching.
+- **Director.** While searching he never goes cold: every 6 s he gets a new place to
+  look, alternating between a fuzzy hint (a random reachable point within a radius of
+  where you really are, shrinking from 40 m to 15 m the longer you stay hidden) and
+  the chokepoint nearest you.
+- **Speed.** In sight he's a little slower than your run (5.7 vs 6.0 m/s), so good
+  movement opens a gap. Out of sight he's faster (6.6 m/s), and more than 30 m away by
+  path he speeds up again (x1.3). He never teleports.
+- **Caught** within 0.9 m: game over, R to restart. He waits while the menu is open.
+
 ## Test room
 
 `movement_sandbox.blend` has stairs (17 cm station stairs, then 20 cm escalator-like steps), ramps at 15°/30°/44°
@@ -118,5 +152,8 @@ a low-ceiling pillar hall and a long runway with 10 m markers for bunny-hopping.
 - The bundle is ~5 MB (1.8 MB gzipped), mostly Rapier's inlined WASM. Fine for now;
   switch to the non-compat Rapier build if load time matters.
 - No ladders, water or surf yet.
+- Tuning step height, slope or hull size doesn't rebuild the chaser's navmesh (saving
+  the level does).
+- Recast adds ~730 kB (220 kB gzipped) to the bundle.
 - Nothing checks that the committed .glb is up to date with its .blend. Saving with
   `pnpm dev` running keeps it in sync; otherwise run `pnpm export-levels`.

@@ -19,3 +19,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #111; color:
 .card dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
 .card dt { font-weight: 600; white-space: nowrap; }
 .card dd { margin: 0; opacity: .85; }
+#threat { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: var(--panel); font: 700 13px/1.5 ui-monospace, monospace; letter-spacing: .06em; pointer-events: none; }
+#threat[hidden] { display: none; }
+#threat[data-awareness="searching"] { color: #f2c14e; }
+#threat[data-awareness="hunting"] { color: #fff; background: rgba(170, 30, 40, 0.85); }
+#caught { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(90, 8, 14, 0.55); }
+#caught[hidden] { display: none; }

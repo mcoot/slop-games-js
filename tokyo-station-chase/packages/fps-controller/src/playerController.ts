@@ -101,6 +101,11 @@ export class PlayerController {
     this.collider.setTranslation(this.center());
   }
 
+  /** Handle of the hull collider, e.g. to exclude it from line-of-sight rays. */
+  get colliderHandle(): number {
+    return this.collider.handle;
+  }
+
   get horizontalSpeed(): number {
     return horizontalSpeed(this.velocity);
   }

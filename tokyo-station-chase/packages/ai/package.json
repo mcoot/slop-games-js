@@ -1,0 +1,17 @@
+{
+  "name": "@slop/ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "@recast-navigation/core": "0.43.1",
+    "@recast-navigation/generators": "0.43.1",
+    "@slop/fps-controller": "workspace:*",
+    "@slop/physics": "workspace:*",
+    "three": "^0.186.1"
+  }
+}
