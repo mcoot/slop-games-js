@@ -54,6 +54,7 @@ async function makeChase(playerAt: Vec3, chaserAt: Vec3, opts: { state?: ChaserS
   const states = new Set<ChaserState>();
   let caughtAt = -1;
   let t = 0;
+  const ctl = { hidden: false };
   const run = (seconds: number, cmd: Partial<MoveCommand> = {}, until?: () => boolean) => {
     for (let i = 0; i < Math.round(seconds / DT); i++) {
       player.tick({ forward: 0, side: 0, jumpPresses: 0, jumpHeld: false, crouch: false, walk: false, yaw: 0, ...cmd }, DT);
@@ -66,6 +67,7 @@ async function makeChase(playerAt: Vec3, chaserAt: Vec3, opts: { state?: ChaserS
           eye: { x: p.x, y: p.y + player.eyeHeight, z: p.z },
           velocity: { ...player.velocity },
           colliderHandle: player.colliderHandle,
+          hidden: ctl.hidden,
         },
         bus.drain(),
       );
@@ -76,7 +78,20 @@ async function makeChase(playerAt: Vec3, chaserAt: Vec3, opts: { state?: ChaserS
       if (until?.()) return;
     }
   };
-  return { world, player, chaser, run, states, caught: () => caughtAt };
+  return {
+    world,
+    player,
+    chaser,
+    run,
+    states,
+    caught: () => caughtAt,
+    get hidden() {
+      return ctl.hidden;
+    },
+    set hidden(v: boolean) {
+      ctl.hidden = v;
+    },
+  };
 }
 
 const hdist = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -101,7 +116,7 @@ describe("navmesh", () => {
 
 describe("chaser", () => {
   it("runs down and catches a player standing in view", async () => {
-    const c = await makeChase({ x: 0, y: 0.05, z: 10 }, { x: 0, y: 0.05, z: -10 }, { facePlayer: true });
+    const c = await makeChase({ x: 0, y: 0.05, z: 10 }, { x: 0, y: 0.05, z: -10 }, { facePlayer: true, state: "idle" });
     c.run(8, {}, () => c.caught() >= 0);
     expect(c.states.has("chase")).toBe(true);
     expect(c.caught()).toBeGreaterThan(0);
@@ -159,13 +174,55 @@ describe("chaser", () => {
     expect(hdist(c.chaser.body.feet, { x: 32, y: 0, z: -44.5 })).toBeLessThan(1.5);
   });
 
+  it("starts calm: walks its patrol without searching for you", async () => {
+    const c = await makeChase({ x: -44, y: 0.05, z: -73 }, { x: 40, y: 0.05, z: 0 }, { state: "idle" });
+    c.chaser.patrol = [{ x: 40, y: 0, z: -20 }, { x: 40, y: 0, z: 0 }];
+    c.run(30);
+    expect(c.chaser.state).toBe("idle");
+    expect(c.chaser.awareness).toBe("unaware");
+    expect(c.chaser.directive).toBeNull();
+    expect(c.chaser.body.feet.z).toBeLessThan(0.5); // it has been walking the route
+    expect(Math.max(c.chaser.body.horizontalSpeed, 0)).toBeLessThanOrEqual(c.chaser.settings.patrolSpeed + 0.1);
+  });
+
+  it("combs the area where it lost you before the director helps", async () => {
+    const c = await makeChase({ x: -44, y: 0.05, z: -73 }, { x: 40, y: 0.05, z: 0 }, { state: "search" });
+    const kinds = new Set<string>();
+    const start = { ...c.chaser.body.feet };
+    c.chaser.lastKnown = start;
+    c.run(c.chaser.settings.hintDelay - 1, {}, () => (c.chaser.directive && kinds.add(c.chaser.directive.kind), false));
+    expect([...kinds]).toEqual(["local"]);
+    expect(hdist(c.chaser.body.feet, start)).toBeLessThan(c.chaser.settings.searchGraceRadius + 2);
+    c.run(15, {}, () => (c.chaser.directive && kinds.add(c.chaser.directive.kind), false));
+    expect(kinds.has("hint")).toBe(true);
+  });
+
+  it("gets no hints while the player hides and keeps still", async () => {
+    const c = await makeChase({ x: -44, y: 0.05, z: -73 }, { x: 40, y: 0.05, z: 0 }, { state: "search" });
+    c.chaser.settings.hintDelay = 0;
+    c.chaser.settings.searchGrace = 0;
+    c.hidden = true;
+    c.run(20);
+    expect(c.chaser.directive?.kind ?? "none").not.toBe("hint");
+    c.hidden = false;
+    c.run(2);
+    expect(c.chaser.directive?.kind).toBe("hint");
+  });
+
+  it("is slower than you when searching, faster when running to a noise", async () => {
+    const s = (await makeChase({ x: 0, y: 0.05, z: 10 }, { x: 0, y: 0.05, z: -5 })).chaser.settings;
+    expect(s.searchSpeed).toBeLessThan(S.runSpeed);
+    expect(s.investigateSpeed).toBeGreaterThan(S.runSpeed);
+    expect(s.chaseSpeed).toBeLessThan(S.runSpeed);
+  });
+
   it("only catches up when the player is out of sight and far away", async () => {
     const far = await makeChase({ x: 0, y: 0.05, z: 10 }, { x: 0, y: 0.05, z: -40 }); // facing away
     far.run(0.6);
     expect(far.chaser.catchingUp).toBe(true);
 
-    const seen = await makeChase({ x: 0, y: 0.05, z: 10 }, { x: 0, y: 0.05, z: -30 }, { facePlayer: true });
-    seen.run(0.6);
+    const seen = await makeChase({ x: 0, y: 0.05, z: 10 }, { x: 0, y: 0.05, z: -12 }, { facePlayer: true, state: "idle" });
+    seen.run(1.2); // reacts slower at 22 m
     expect(seen.chaser.state).toBe("chase");
     expect(seen.chaser.catchingUp).toBe(false);
 
@@ -176,7 +233,7 @@ describe("chaser", () => {
 
   it("is slower than a running player while it can see them", async () => {
     // Open ground along x = 45, running away down -Z in plain view.
-    const c = await makeChase({ x: 45, y: 0.05, z: -20 }, { x: 45, y: 0.05, z: 0 }, { facePlayer: true });
+    const c = await makeChase({ x: 45, y: 0.05, z: -20 }, { x: 45, y: 0.05, z: 0 }, { facePlayer: true, state: "idle" });
     c.run(0.5);
     const gap0 = hdist(c.player.feet, c.chaser.body.feet);
     c.run(4, { forward: 1 });

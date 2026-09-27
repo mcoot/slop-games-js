@@ -11,19 +11,27 @@ export type Awareness = "unaware" | "searching" | "hunting";
 export interface ChaserSettings {
   /** Speed while it has you in sight (m/s). Keep it a little under the player's run speed. */
   chaseSpeed: number;
-  /** Speed while investigating and searching (m/s). Above the player's run speed. */
+  /** Running to a fresh noise or where it last saw you (m/s). */
+  investigateSpeed: number;
+  /** Brisk walk while searching an area or following director hints (m/s). Slower than the player. */
   searchSpeed: number;
+  /** Walking its patrol before it knows you're there (m/s). */
+  patrolSpeed: number;
   /** Out of sight and further than this along the navmesh (m), it speeds up further. */
   catchUpDistance: number;
   catchUpMultiplier: number;
   /** How far it can see (m). */
   sightRange: number;
-  /** Field of view (degrees). */
+  /** Field of view close up (degrees). */
   fovDeg: number;
+  /** Field of view at the edge of its sight range: it notices less off to the side far away. */
+  fovFarDeg: number;
   /** Within this distance (m) it notices you whatever way it's facing. */
   nearSense: number;
-  /** Seconds you must be in view before an unaware or searching chaser reacts. */
+  /** Seconds you must be in view (close up) before an unaware or searching chaser reacts. */
   reactionTime: number;
+  /** The same at the edge of its sight range. */
+  reactionTimeFar: number;
   /** Seconds out of sight before a chase becomes an investigation. */
   loseSightGrace: number;
   /** Seconds ahead it guesses you'll be from where it last saw you going. */
@@ -32,6 +40,12 @@ export interface ChaserSettings {
   hearingThroughWalls: number;
   /** Seconds it looks around on reaching a place to search. */
   lookAroundTime: number;
+  /** After losing you, seconds it searches near where it last knew you were before asking the director. */
+  searchGrace: number;
+  /** How far from that spot it looks during the grace period (m). */
+  searchGraceRadius: number;
+  /** No director hints until this many seconds after it (re)spawns. */
+  hintDelay: number;
   /** Catch distance (m, horizontal). */
   catchRadius: number;
   /** Turning speed (rad/s). */
@@ -39,18 +53,25 @@ export interface ChaserSettings {
 }
 
 export const defaultChaser: ChaserSettings = {
-  chaseSpeed: 5.7,
-  searchSpeed: 6.3,
+  chaseSpeed: 5.5,
+  investigateSpeed: 6.3,
+  searchSpeed: 4.5,
+  patrolSpeed: 2.2,
   catchUpDistance: 30,
   catchUpMultiplier: 1.15,
-  sightRange: 45,
+  sightRange: 28,
   fovDeg: 120,
+  fovFarDeg: 70,
   nearSense: 2,
   reactionTime: 0.35,
+  reactionTimeFar: 0.8,
   loseSightGrace: 0.6,
   predictTime: 0.8,
   hearingThroughWalls: 0.35,
   lookAroundTime: 2.5,
+  searchGrace: 12,
+  searchGraceRadius: 8,
+  hintDelay: 25,
   catchRadius: 0.9,
   turnRate: 8,
 };
@@ -61,6 +82,8 @@ export interface Quarry {
   eye: Vec3;
   velocity: Vec3;
   colliderHandle: number;
+  /** In a hiding place and keeping still: the director gives no hints. */
+  hidden?: boolean;
 }
 
 export interface ChaserOptions {
@@ -70,7 +93,10 @@ export interface ChaserOptions {
   director?: Director;
   /** Randomness for search decisions (inject a seeded one for tests). */
   random?: () => number;
+  /** Starting state. Idle (patrolling, unaware) by default. */
   state?: ChaserState;
+  /** Points it walks between while idle, in order, looping. */
+  patrol?: Vec3[];
 }
 
 const ARRIVE = 0.7;
@@ -100,12 +126,18 @@ export class Chaser {
   catchingUp = false;
   /** Seconds since it last saw or heard you. */
   timeLost = 0;
+  /** Has it ever noticed you (this round)? The director only helps once it has. */
+  alerted: boolean;
+  patrol: Vec3[];
   readonly events = { caught: false, spotted: false };
 
   settings: ChaserSettings;
   readonly director: Director;
   private readonly random: () => number;
   private time = 0;
+  private sinceSpawn = 0;
+  private searchTime = 0;
+  private patrolIndex = 0;
   private sightTime = 0;
   private lastSeenAt = -Infinity;
   private lastSeenVelocity: Vec3 = { x: 0, y: 0, z: 0 };
@@ -129,7 +161,9 @@ export class Chaser {
     this.settings = options.settings ?? { ...defaultChaser };
     this.director = options.director ?? new HintDirector();
     this.random = options.random ?? Math.random;
-    this.state = options.state ?? "search";
+    this.state = options.state ?? "idle";
+    this.alerted = this.state !== "idle";
+    this.patrol = options.patrol ?? [];
     this.body = new PlayerController(world, { ...(options.movement ?? tokyoMovement) }, spawn.position);
     this.facing = spawn.yaw;
   }
@@ -151,7 +185,7 @@ export class Chaser {
   }
 
   /** Put it back at a spawn for a new round. */
-  respawn(spawn: { position: Vec3; yaw: number }, state: ChaserState = "search"): void {
+  respawn(spawn: { position: Vec3; yaw: number }, state: ChaserState = "idle"): void {
     this.body.teleport(spawn.position);
     this.facing = spawn.yaw;
     this.state = state;
@@ -163,11 +197,15 @@ export class Chaser {
     this.lastSeenAt = -Infinity;
     this.directiveTimer = Infinity;
     this.director.reset();
+    this.alerted = state !== "idle";
+    this.sinceSpawn = 0;
+    this.patrolIndex = 0;
   }
 
   update(dt: number, quarry: Quarry, noises: readonly NoiseEvent[]): void {
     const s = this.settings;
     this.time += dt;
+    this.sinceSpawn += dt;
     this.events.caught = false;
     this.events.spotted = false;
     if (this.state === "caught") {
@@ -178,14 +216,18 @@ export class Chaser {
     // Senses.
     const sees = this.canSee(quarry);
     this.sightTime = sees ? this.sightTime + dt : 0;
+    // Slower to react to someone far away.
+    const far = Math.min(dist(this.eye, quarry.eye) / s.sightRange, 1);
+    const reaction = s.reactionTime + (s.reactionTimeFar - s.reactionTime) * far;
     let sensed = false;
-    if (sees && (this.state === "chase" || this.sightTime >= s.reactionTime)) {
+    if (sees && (this.state === "chase" || this.sightTime >= reaction)) {
       sensed = true;
       this.lastSeenAt = this.time;
       this.lastKnown = { ...quarry.feet };
       this.lastSeenVelocity = { ...quarry.velocity };
       if (this.state !== "chase") {
         this.state = "chase";
+        this.alerted = true;
         this.events.spotted = true;
       }
     }
@@ -224,16 +266,35 @@ export class Chaser {
           this.state = "search";
           this.directive = null;
           this.directiveTimer = Infinity;
+          this.searchTime = 0;
         }
         break;
       case "search": {
         this.directiveTimer += dt;
+        this.searchTime += dt;
         const lookedAround = this.arrived() && this.lookAround(dt);
+        // First comb the area where it lost you; only then (and never before first
+        // contact, or early in the round) does the director help.
+        const local = this.searchTime < s.searchGrace || !this.alerted || this.sinceSpawn < s.hintDelay;
+        if (local) {
+          if (!this.directive || this.directive.kind !== "local" || lookedAround) {
+            const around = this.lastKnown ?? this.body.feet;
+            const spot = this.nav.randomPointNear(around, s.searchGraceRadius, this.random);
+            if (spot) {
+              this.directive = { position: spot, kind: "local" };
+              this.goal = spot;
+              this.lookTimer = 0;
+            }
+            this.directiveTimer = 0;
+          }
+          break;
+        }
         const due = this.directiveTimer >= this.director.interval;
-        if (!this.directive || (due && (this.directive.kind === "hint" || lookedAround))) {
+        if (!this.directive || this.directive.kind === "local" || (due && (this.directive.kind === "hint" || lookedAround))) {
           const next = this.director.next({
             nav: this.nav,
             quarry: quarry.feet,
+            quarryHidden: quarry.hidden ?? false,
             hunter: this.body.feet,
             timeLost: this.timeLost,
             random: this.random,
@@ -247,9 +308,13 @@ export class Chaser {
         }
         break;
       }
-      case "idle":
-        this.goal = null;
+      case "idle": {
+        // Patrol, unaware.
+        const point = this.patrol[this.patrolIndex % Math.max(this.patrol.length, 1)];
+        this.goal = point ?? null;
+        if (point && this.arrived()) this.patrolIndex++;
         break;
+      }
     }
 
     // Catch.
@@ -276,8 +341,10 @@ export class Chaser {
         this.nav.pathLength(this.body.feet, quarry.feet) > s.catchUpDistance;
     }
     if (sees) this.catchingUp = false;
-    const speed =
-      (this.state === "chase" ? s.chaseSpeed : s.searchSpeed) * (this.catchingUp ? s.catchUpMultiplier : 1);
+    const base = { chase: s.chaseSpeed, investigate: s.investigateSpeed, search: s.searchSpeed, idle: s.patrolSpeed }[
+      this.state
+    ];
+    const speed = base * (this.catchingUp ? s.catchUpMultiplier : 1);
 
     this.move(dt, this.goal, speed);
     if (sees && this.state === "chase") this.turnTowards(yawTo(this.body.feet, quarry.feet), dt);
@@ -285,6 +352,7 @@ export class Chaser {
 
   private startInvestigating(): void {
     this.state = "investigate";
+    this.alerted = true;
     this.lookTimer = 0;
   }
 
@@ -294,8 +362,10 @@ export class Chaser {
     const d = dist(eye, q.eye);
     if (d > s.sightRange) return false;
     if (d > s.nearSense) {
+      // Narrower attention further away.
+      const fov = s.fovDeg + (s.fovFarDeg - s.fovDeg) * Math.min(d / s.sightRange, 1);
       const off = Math.abs(wrapAngle(yawTo(eye, q.eye) - this.facing));
-      if (off > ((s.fovDeg / 2) * Math.PI) / 180) return false;
+      if (off > ((fov / 2) * Math.PI) / 180) return false;
     }
     // Look at the head and the chest, standing and stooped (to see under low ceilings it can't enter).
     const ignore = [this.body.colliderHandle, q.colliderHandle];

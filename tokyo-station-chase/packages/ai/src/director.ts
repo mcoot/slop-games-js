@@ -5,6 +5,8 @@ export interface DirectorContext {
   nav: Navigation;
   /** Where the quarry really is. A director may use it, but should only hand out fuzzy information. */
   quarry: Vec3;
+  /** The quarry is hiding and keeping still: a fair director gives nothing away. */
+  quarryHidden: boolean;
   hunter: Vec3;
   /** Seconds since the hunter last saw or heard the quarry. */
   timeLost: number;
@@ -14,7 +16,8 @@ export interface DirectorContext {
 export interface Directive {
   /** Where to go and search. */
   position: Vec3;
-  kind: "hint" | "chokepoint";
+  /** "local" directives are the searcher's own (combing the area where it lost you). */
+  kind: "hint" | "chokepoint" | "local";
 }
 
 /**
@@ -68,6 +71,7 @@ export class HintDirector implements Director {
   }
 
   next(ctx: DirectorContext): Directive | null {
+    if (ctx.quarryHidden) return null;
     const useChokepoint = this.chokepoints.length > 0 && this.count % 2 === 1;
     this.count++;
     if (useChokepoint) {

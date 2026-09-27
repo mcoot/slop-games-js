@@ -159,8 +159,8 @@ describe("station round", () => {
   });
 
   it("the machine's beeps bring the chaser over", async () => {
-    // Chaser 11 m from the machines, facing away (east).
-    const s = await makeStation({ spawn: { x: -38.1, y: 0.05, z: -24 }, chaser: { at: { x: -27, y: 0.05, z: -24 }, yaw: -Math.PI / 2 } });
+    // Chaser 8 m from the machines, facing away (east).
+    const s = await makeStation({ spawn: { x: -38.1, y: 0.05, z: -24 }, chaser: { at: { x: -31, y: 0.05, z: -24 }, yaw: -Math.PI / 2 } });
     s.wait(0.5);
     expect(s.chaser!.state).toBe("idle");
     s.round.useMachine(s.round.machines[1]!.position, s.bus);

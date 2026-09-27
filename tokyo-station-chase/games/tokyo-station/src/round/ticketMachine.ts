@@ -210,17 +210,17 @@ export class TicketMachine implements ScreenMachine {
   private insert(d: Denomination): void {
     if (NOT_ACCEPTED.has(d) || !this.wallet.take(d)) return;
     this.inserted.push(d);
-    this.sound({ kind: isNote(d) ? "note" : "coin", radius: isNote(d) ? 6 : 8 });
+    this.sound({ kind: isNote(d) ? "note" : "coin", radius: isNote(d) ? 5 : 6 });
     const paid = () => {
       if (this.insertedTotal < this.fare) return;
       this.change = makeChange(this.insertedTotal - this.fare);
       this.ticket = { destination: this.destinationId!, seat: this.seat, passengers: this.passengers, fare: this.fare };
       this.inserted = [];
       this.screen = "issuing";
-      this.sound({ kind: "print", radius: 14 });
+      this.sound({ kind: "print", radius: 10 });
       this.wait(this.settings.issueTime, () => {
         this.screen = "done";
-        if (this.change.length) this.sound({ kind: "change", radius: 10 });
+        if (this.change.length) this.sound({ kind: "change", radius: 7 });
       });
     };
     if (isNote(d)) this.wait(this.settings.noteDelay, paid);
@@ -228,7 +228,7 @@ export class TicketMachine implements ScreenMachine {
   }
 
   private go(screen: MachineScreen): void {
-    this.sound({ kind: "beep", radius: 10 });
+    this.sound({ kind: "beep", radius: 7 });
     this.wait(this.settings.screenDelay, () => (this.screen = screen));
   }
 
@@ -244,7 +244,7 @@ export class TicketMachine implements ScreenMachine {
     if (this.screen === "done") return this.press("take");
     this.wallet.addAll(this.inserted);
     this.inserted = [];
-    this.sound({ kind: "beep", radius: 10 });
+    this.sound({ kind: "beep", radius: 7 });
     this.ticket = null;
     this.closed = true;
   }

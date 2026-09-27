@@ -101,6 +101,8 @@ describe("ticket machine", () => {
     buy(m, "shinagawa", "unreserved", 1);
     press(m, "insert:1000");
     expect(sounds.map((s) => s.kind)).toEqual(["beep", "beep", "beep", "note", "print", "change"]);
-    expect(Math.max(...sounds.map((s) => s.radius))).toBeGreaterThanOrEqual(12);
+    // Audible around the machine's alcove, not across the station.
+    expect(Math.max(...sounds.map((s) => s.radius))).toBeLessThanOrEqual(10);
+    expect(sounds.find((s) => s.kind === "print")!.radius).toBeGreaterThanOrEqual(8);
   });
 });

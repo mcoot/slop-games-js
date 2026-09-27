@@ -124,7 +124,12 @@ async function main() {
   const chaserSpawn = () => level.markers.get("chaser_spawn")?.[0] ?? { position: { x: 0, y: 0, z: -40 }, yaw: 0 };
   const chokepoints = () => (level.markers.get("chokepoint") ?? []).map((m) => m.position);
   director.chokepoints = chokepoints();
-  const chaser = new Chaser(world, nav, chaserSpawn(), { director, movement: { ...movement } });
+  const patrol = () =>
+    (level.markers.get("patrol_point") ?? [])
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((m) => m.position);
+  const chaser = new Chaser(world, nav, chaserSpawn(), { director, movement: { ...movement }, patrol: patrol() });
   const chaserView = new ChaserView(movement.standHeight, movement.hullHalfWidth);
   scene.add(chaserView.root);
   const noise = new MovementNoise();
@@ -218,17 +223,24 @@ async function main() {
   tuning.addGroup("Chaser", chase, { enabled: true, footstepVolume: [0, 1, 0.05], showNavmesh: true });
   tuning.addGroup("Chaser behaviour", chaser.settings, {
     chaseSpeed: [1, 12, 0.05],
+    investigateSpeed: [1, 12, 0.05],
     searchSpeed: [1, 12, 0.05],
+    patrolSpeed: [0.5, 8, 0.05],
     catchUpDistance: [5, 100, 1],
     catchUpMultiplier: [1, 2.5, 0.05],
     sightRange: [5, 120, 1],
     fovDeg: [30, 240, 1],
+    fovFarDeg: [10, 240, 1],
     nearSense: [0, 6, 0.1],
     reactionTime: [0, 2, 0.05],
+    reactionTimeFar: [0, 3, 0.05],
     loseSightGrace: [0, 3, 0.05],
     predictTime: [0, 3, 0.05],
     hearingThroughWalls: [0, 1, 0.05],
     lookAroundTime: [0, 8, 0.1],
+    searchGrace: [0, 60, 1],
+    searchGraceRadius: [1, 30, 0.5],
+    hintDelay: [0, 120, 1],
     catchRadius: [0.4, 2, 0.05],
   });
   tuning.addGroup("Chaser director", director.settings, {
@@ -307,6 +319,7 @@ async function main() {
       const p = player.feet;
       round?.tick(dt, { x: p.x, y: p.y, z: p.z }, chase.enabled ? { ...chaser.body.feet } : null, noises);
       const heard = noises.drain();
+      const zones = triggersAt(world, level, { x: p.x, y: p.y + 0.9, z: p.z });
       for (const e of heard) sfx.noise(e, camera.position, 1);
       // The chaser waits while the menu is open (but not while you're at a machine).
       if (chase.enabled && (look.isLocked || machinePanel.isOpen)) {
@@ -317,6 +330,7 @@ async function main() {
             eye: { x: p.x, y: p.y + player.eyeHeight, z: p.z },
             velocity: { ...player.velocity },
             colliderHandle: player.colliderHandle,
+            hidden: player.horizontalSpeed < 0.3 && zones.some((z) => z.startsWith("hide")),
           },
           heard,
         );
@@ -398,6 +412,7 @@ async function main() {
           nav = Navigation.build(level.solids, agent());
           chaser.setNavigation(nav);
           director.chokepoints = chokepoints();
+          chaser.patrol = patrol();
           updateNavHelper();
           setupRound();
           applyTuning();

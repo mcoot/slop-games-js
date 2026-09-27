@@ -130,22 +130,29 @@ and how far away he is.
   hot reload). He climbs stairs and ramps but can't jump or crouch, so gaps, tall boxes
   and crawlspaces shake him off. If he can see you but can't reach you, he waits at the
   nearest point he can reach.
-- **Sight.** 45 m, 120° field of view, blocked by geometry; within 2 m he notices you
-  whatever way he faces. He stoops to look into low spaces. A short reaction time
-  before he commits when he wasn't already chasing.
+- **Starts calm.** He walks a patrol (`patrol_point` markers, in name order) at a
+  stroll, unaware, until he sees or hears you. The director never helps him before
+  that first contact, nor in the first 25 s of a round.
+- **Sight.** 28 m. Close up he has a 120° field of view and reacts in 0.35 s; towards
+  28 m that narrows to 70° and 0.8 s, so crossing a corridor far away isn't fatal.
+  Blocked by geometry; within 2 m he notices you whatever way he faces. He stoops to
+  look into low spaces.
 - **Hearing.** Your movement makes noise events: running footsteps carry ~15 m,
   walking (Shift) and crouching almost nothing, jumps 8 m and landings more the harder
   you land (bunny-hop chains are loud). Walls muffle noise. Anything can emit noise
-  through `NoiseBus` (ticket machines and gates will in M3).
-- **Losing you.** When you break line of sight he heads to where you were going
-  (last seen position plus velocity), looks around, then starts searching.
-- **Director.** While searching he never goes cold: every 9 s he gets a new place to
-  look, alternating between a fuzzy hint (a random reachable point within a radius of
-  where you really are, shrinking from 45 m to 20 m the longer you stay hidden) and
-  the chokepoint nearest you.
-- **Speed.** In sight he's a little slower than your run (5.7 vs 6.0 m/s), so good
-  movement opens a gap. Out of sight he's faster (6.3 m/s), and more than 30 m away by
-  path he speeds up again (x1.15). He never teleports.
+  through `NoiseBus`: the ticket machines beep (7 m) and print (10 m), gates chime.
+- **Losing you.** When you break line of sight he runs to where you were going (last
+  seen position plus velocity) and looks around, then spends 12 s combing that area
+  at a brisk walk before the director gets involved.
+- **Director.** After that, every 9 s he gets a new place to look, alternating between
+  a fuzzy hint (a random reachable point within a radius of where you really are,
+  shrinking from 45 m to 20 m the longer you stay hidden) and the chokepoint nearest
+  you. While you're in a hiding place (`hide_col_trigger`) and keeping still he gets
+  no hints at all.
+- **Speed.** In sight 5.5 m/s (you run 6.0), so breaking line of sight around a corner
+  opens a gap. Running to a fresh noise or last-seen spot 6.3 m/s; searching and
+  following hints 4.5 m/s (a brisk walk); patrolling 2.2 m/s. More than 30 m away by
+  path he speeds up x1.15. He never teleports.
 - **Caught** within 0.9 m: game over, R to restart. He waits while the menu is open.
 
 ## The station round (M3)
