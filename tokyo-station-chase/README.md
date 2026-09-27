@@ -43,8 +43,8 @@ only `games/tokyo-station` knows about Tokyo, yen or trains.
 | `@slop/physics` | Rapier (WASM) setup; static colliders from three.js meshes (boxes become cuboids, everything else a trimesh) |
 | `@slop/fps-controller` | Source movement: friction, accelerate, air-accelerate, jumping, crouching and crouch-jumping, StepMove (stairs and ramps at full speed), StayOnGround, velocity clipping. Plus the camera rig (FOV in Source 4:3 terms, stair smoothing, landing dip, optional head bob) |
 | `@slop/tuning` | lil-gui tuning panel with presets, browser save and JSON import/export |
-| `@slop/level-loader` | Loads a Blender-exported .glb as a level: meshes, colliders, spawn point and trigger volumes, from naming conventions (see "Levels") |
-| `tools/` | Headless Blender export (`export-levels.mjs`, `blender/export_gltf.py`) |
+| `@slop/level-loader` | Loads a Blender-exported .glb as a level: meshes, colliders, markers (spawns etc.) and trigger volumes, from naming conventions (see "Levels"). Can dispose a level for hot reload |
+| `tools/` | Headless Blender export (`export-levels.mjs`, `blender/export_gltf.py`) and the Vite plugin that hot-reloads levels |
 | `games/tokyo-station` | The game. For now: the greybox movement sandbox, HUD and wiring |
 
 ## Conventions
@@ -65,7 +65,15 @@ loads at runtime. Sources live in `games/tokyo-station/assets-src/levels/*.blend
 committed, so only people editing levels need Blender. The export script finds
 Blender via `$BLENDER`, then `blender` on your PATH, then `/Applications/Blender.app`.
 
-After editing a .blend: save, run `pnpm export-levels`, then `pnpm test`.
+### Hot reload
+
+While `pnpm dev` is running, just save the .blend in Blender. The dev server re-exports
+it (about a second) and the open game swaps the level in place: no page reload, and
+you keep your position and velocity (press R to go back to the spawn, which picks up
+a moved `player_spawn`). Export errors show in the dev server's terminal and the
+browser console. Running `pnpm export-levels` by hand also triggers a reload.
+
+Before committing a level change, run `pnpm test` (the movement tests use the sandbox).
 
 ### Authoring conventions
 
@@ -76,17 +84,20 @@ The player's forward at yaw 0 is Blender **+Y**. 1 Blender unit = 1 m.
 | --- | --- |
 | Any mesh | Drawn and solid. A mesh that is exactly a box (like the default cube, with any location, rotation and scale) gets an exact box collider; anything else a triangle-mesh collider |
 | Custom property `collider` = `box` / `mesh` / `none` | Overrides that choice. `none` makes a mesh decoration only |
-| `COL_<anything>` mesh | Collision only, not drawn. Put simple boxes under detailed art |
-| `TRIG_<name>` mesh | Invisible trigger volume (a box, or the convex hull of any other shape). Never blocks the player; the HUD shows `zone <name>` while you're inside |
-| `SPAWN_player` empty | Where the player's feet start, facing the empty's +Y axis |
+| Mesh named `<anything>_col` | Collision only, not drawn. Put simple boxes under detailed art (and set `collider` = `none` on the art) |
+| Mesh named `<name>_col_trigger` | Invisible trigger volume (a box, or the convex hull of any other shape). Never blocks the player; the HUD shows `zone <name>` while you're inside |
+| Empty with custom property `type` | A marker. The loader returns markers grouped by type, each with a position and a facing (the empty's +Y axis) |
+| Marker `type` = `player_spawn` | Where the player's feet start, facing the empty's +Y axis. Planned types: `chaser_spawn`, `money_spawn`, `interact`, `train_door` |
 | Custom property `surface` | Greybox material for the mesh: `floor`, `wall`, `stairs`, `ramp`, `steep`, `platform` or `prop`. Meshes without it keep their Blender material (base colour etc. via glTF) |
 | Empty with custom property `label` | A floating text label |
 
 Custom properties are set in Object Properties → Custom Properties, on the object
 (not the mesh data). Hidden objects are still exported.
 
-Names: three.js drops `.`, `:`, `/`, `[` and `]` from object names and turns spaces into
-underscores, so `jumpbox-0.5` becomes `jumpbox-05` in the game.
+Blender's duplicate suffix is ignored, so a copy named `pillar_col.001` is still a
+collision mesh. three.js drops `.`, `:`, `/`, `[` and `]` from `Object3D.name` and turns
+spaces into underscores (`jumpbox-0.5` becomes `jumpbox-05`); the Blender name is kept in
+`userData.name`.
 
 ### The movement sandbox
 
@@ -107,5 +118,5 @@ a low-ceiling pillar hall and a long runway with 10 m markers for bunny-hopping.
 - The bundle is ~5 MB (1.8 MB gzipped), mostly Rapier's inlined WASM. Fine for now;
   switch to the non-compat Rapier build if load time matters.
 - No ladders, water or surf yet.
-- Nothing checks that the committed .glb is up to date with its .blend: run
-  `pnpm export-levels` after editing a level.
+- Nothing checks that the committed .glb is up to date with its .blend. Saving with
+  `pnpm dev` running keeps it in sync; otherwise run `pnpm export-levels`.

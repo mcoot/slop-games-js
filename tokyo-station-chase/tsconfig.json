@@ -1,4 +1,10 @@
 {
   "extends": "./tsconfig.base.json",
-  "include": ["packages/*/src", "games/*/src", "games/*/test", "games/*/vite.config.ts"]
+  "include": [
+    "packages/*/src",
+    "games/*/src",
+    "games/*/test",
+    "games/*/vite.config.ts",
+    "tools/*.ts"
+  ]
 }

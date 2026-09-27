@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { FixedLoop, FrameStats } from "@slop/core";
 import { ActionInput, MouseLook, attachDomInput } from "@slop/input";
 import { createPhysicsWorld } from "@slop/physics";
-import { loadLevel, triggersAt } from "@slop/level-loader";
+import { disposeLevel, loadLevel, triggersAt, type Level } from "@slop/level-loader";
 import {
   FpsCameraRig,
   PlayerController,
@@ -57,21 +57,27 @@ async function main() {
   const camera = new THREE.PerspectiveCamera(74, 1, 0.05, 400);
 
   const world = await createPhysicsWorld();
-  const level = await loadLevel(world, SANDBOX_URL);
   const materials = new Map<Surface, THREE.Material>();
-  level.root.traverse((obj) => {
-    const surface = obj.userData.surface as Surface | undefined;
-    if (obj instanceof THREE.Mesh && surface && surface in surfaceColors) {
-      if (!materials.has(surface)) materials.set(surface, gridMaterial(surfaceColors[surface]));
-      obj.material = materials.get(surface)!;
-      obj.castShadow = surface !== "floor";
-      obj.receiveShadow = true;
-    }
-    if (typeof obj.userData.label === "string") {
-      scene.add(textSprite(obj.userData.label, obj.getWorldPosition(new THREE.Vector3()).toArray()));
-    }
-  });
-  scene.add(level.root);
+  /** Greybox materials for `surface` meshes, and text sprites for `label` empties (added under the level root). */
+  const dress = (level: Level) => {
+    const labels: THREE.Sprite[] = [];
+    level.root.traverse((obj) => {
+      const surface = obj.userData.surface as Surface | undefined;
+      if (obj instanceof THREE.Mesh && surface && surface in surfaceColors) {
+        if (!materials.has(surface)) materials.set(surface, gridMaterial(surfaceColors[surface]));
+        obj.material = materials.get(surface)!;
+        obj.castShadow = surface !== "floor";
+        obj.receiveShadow = true;
+      }
+      if (typeof obj.userData.label === "string") {
+        labels.push(textSprite(obj.userData.label, obj.getWorldPosition(new THREE.Vector3()).toArray()));
+      }
+    });
+    level.root.add(...labels);
+    scene.add(level.root);
+  };
+  let level = await loadLevel(world, SANDBOX_URL);
+  dress(level);
   world.step();
 
   // Settings objects are shared by reference with the tuning panel.
@@ -174,6 +180,35 @@ async function main() {
       });
     },
   });
+
+  // Dev server: saving the .blend re-exports it and swaps the level in place (see tools/vite-plugin-blender-levels.ts).
+  if (import.meta.hot) {
+    let reloading = Promise.resolve();
+    import.meta.hot.on("blender-levels:update", ({ url }: { url: string }) => {
+      if (url !== SANDBOX_URL) return;
+      reloading = reloading.then(async () => {
+        try {
+          const next = await loadLevel(world, `${url}?t=${Date.now()}`);
+          level.root.traverse((obj) => {
+            if (obj instanceof THREE.Sprite) {
+              obj.material.map?.dispose();
+              obj.material.dispose();
+            }
+          });
+          disposeLevel(world, level);
+          level = next;
+          dress(level);
+          world.step(); // so the next tick's ground checks see the new colliders
+          console.info(`[levels] reloaded ${url}`);
+        } catch (err) {
+          console.error(`[levels] couldn't reload ${url}`, err);
+        }
+      });
+    });
+    import.meta.hot.on("blender-levels:error", ({ file, message }: { file: string; message: string }) => {
+      console.error(`[levels] export of ${file} failed:\n${message}`);
+    });
+  }
 
   const resize = () => {
     const w = window.innerWidth;

@@ -13,6 +13,11 @@ import bpy
 
 out = sys.argv[sys.argv.index("--") + 1]
 
+# If the .blend couldn't be opened Blender carries on with an empty scene: don't
+# overwrite a good level with that.
+if not bpy.data.filepath:
+    sys.exit("could not open the .blend file")
+
 bpy.ops.export_scene.gltf(
     filepath=out,
     export_format="GLB",
