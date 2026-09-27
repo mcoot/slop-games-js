@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tokyo Station Chase: movement sandbox</title>
+    <title>Tokyo Station Chase</title>
   </head>
   <body>
     <canvas id="game"></canvas>
@@ -11,18 +11,23 @@
     <div id="speed"></div>
     <div id="perf"></div>
     <div id="threat" hidden></div>
-    <div id="caught" hidden>
+    <div id="round" hidden></div>
+    <div id="toasts" hidden></div>
+    <div id="prompt" hidden></div>
+    <div id="end" hidden>
       <div class="card">
-        <h1>Caught!</h1>
-        <p>The salaryman got you.</p>
-        <span class="play">Press R to try again</span>
+        <h1></h1>
+        <p class="reason"></p>
+        <p class="stats"></p>
+        <span class="play">Press R to play again</span>
       </div>
     </div>
     <div id="overlay">
       <div class="card">
-        <h1>Movement sandbox</h1>
-        <p>Tokyo Station Chase greybox: Source-style movement, and a salaryman who wants a word.
-          He hears you run and land (walk with Shift to sneak), and he never gives up.</p>
+        <h1>Tokyo Station Chase</h1>
+        <p>Catch the Hikari 507 to Kyoto. Pick up enough yen, buy a ticket at the machines,
+          get through the gates and board before the doors close. A salaryman is after you:
+          he hears you run and land (walk with Shift to sneak), and he never gives up.</p>
         <span class="play">Click to play</span>
         <dl>
           <dt>WASD</dt><dd>Move</dd>
@@ -30,9 +35,11 @@
           <dt>Space / scroll</dt><dd>Jump (scroll-wheel for bunny-hops)</dd>
           <dt>C / Ctrl</dt><dd>Crouch (crouch in the air to crouch-jump)</dd>
           <dt>Shift</dt><dd>Walk</dd>
-          <dt>R</dt><dd>Restart (back to spawn, chaser too)</dd>
+          <dt>E</dt><dd>Use (ticket machine). On the machine: click, or number keys; Esc cancels</dd>
+          <dt>R</dt><dd>Restart the round</dd>
           <dt>Esc</dt><dd>Release mouse · tuning panel top-right</dd>
         </dl>
+        <p class="levels">Levels: <a href="?level=station">station</a> · <a href="?level=sandbox">movement sandbox</a></p>
       </div>
     </div>
     <div id="loading">Loading…</div>

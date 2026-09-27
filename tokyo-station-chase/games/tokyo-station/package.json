@@ -19,6 +19,8 @@
     "@slop/level-loader": "workspace:*",
     "@slop/physics": "workspace:*",
     "@slop/tuning": "workspace:*",
-    "three": "^0.186.1"
+    "three": "^0.186.1",
+    "@slop/ui-screens": "workspace:*",
+    "@slop/interaction": "workspace:*"
   }
 }

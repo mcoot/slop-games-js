@@ -12,6 +12,7 @@ export interface HudState {
   /** Trigger volumes the player is in. */
   zones: string[];
   chaser: { awareness: "unaware" | "searching" | "hunting"; distance: number } | null;
+  round: { train: string; clock: string; wallet: string; urgent: boolean; toasts: string[] } | null;
 }
 
 /** Debug HUD: speedometer bottom-centre, perf top-left. Updated at most ~15 times a second to keep DOM work cheap. */
@@ -19,6 +20,8 @@ export function createHud() {
   const speed = document.querySelector<HTMLElement>("#speed")!;
   const perf = document.querySelector<HTMLElement>("#perf")!;
   const threat = document.querySelector<HTMLElement>("#threat")!;
+  const roundBoard = document.querySelector<HTMLElement>("#round")!;
+  const toasts = document.querySelector<HTMLElement>("#toasts")!;
   let last = 0;
   return {
     update(s: HudState) {
@@ -33,6 +36,13 @@ export function createHud() {
       if (s.chaser) {
         threat.dataset.awareness = s.chaser.awareness;
         threat.textContent = `${s.chaser.awareness.toUpperCase()}  ·  ${Math.round(s.chaser.distance)} m`;
+      }
+      roundBoard.hidden = !s.round;
+      toasts.hidden = !s.round;
+      if (s.round) {
+        roundBoard.classList.toggle("urgent", s.round.urgent);
+        roundBoard.textContent = `${s.round.train}\n${s.round.clock}\n${s.round.wallet}`;
+        toasts.textContent = s.round.toasts.join("\n");
       }
       perf.textContent =
         `${Math.round(s.fps)} fps  avg ${s.avgMs.toFixed(1)} ms  worst ${s.worstMs.toFixed(1)} ms\n` +

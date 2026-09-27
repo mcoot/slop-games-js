@@ -5,14 +5,14 @@ the chaser, collect enough yen, buy a Shinkansen ticket on a realistic machine, 
 through the gates and board a train.
 
 Milestones: M0 movement sandbox → M1 Blender pipeline → M2 chaser → M3 core loop →
-M4 Tokyo Station slice. **M0–M2 are done.**
+M4 Tokyo Station slice. **M0–M3 are done.**
 
 ## Running it
 
 ```sh
 cd tokyo-station-chase
 pnpm install
-pnpm dev        # http://localhost:5173
+pnpm dev        # http://localhost:5173 (?level=sandbox for the movement sandbox)
 pnpm test       # headless movement tests (Rapier runs in Node)
 pnpm typecheck
 pnpm build      # static site in games/tokyo-station/dist
@@ -29,7 +29,9 @@ Click to capture the mouse. Esc releases it and opens the **Tuning** panel
 | Space / mouse wheel | Jump (the wheel is how you bunny-hop) |
 | C / Left Ctrl | Crouch (crouch in the air, or together with jump, to crouch-jump) |
 | Shift | Walk |
-| R | Restart: you and the chaser back to your spawns |
+| E | Use (the ticket machines) |
+| 1–9 / click, Esc | Ticket machine buttons; Esc cancels |
+| R | Restart the round |
 
 ## Layout
 
@@ -45,8 +47,10 @@ only `games/tokyo-station` knows about Tokyo, yen or trains.
 | `@slop/tuning` | lil-gui tuning panel with presets, browser save and JSON import/export |
 | `@slop/level-loader` | Loads a Blender-exported .glb as a level: meshes, colliders, markers (spawns etc.) and trigger volumes, from naming conventions (see "Levels"). Can dispose a level for hot reload |
 | `@slop/ai` | Navmesh (Recast via recast-navigation-js), perception (sight, noise), search directors and the chaser. Game-agnostic: works with any level and `PlayerController` |
+| `@slop/interaction` | Look-at-and-press: which interactable is in reach and in view |
+| `@slop/ui-screens` | Screen UIs (machines, kiosks) as state machines, drawn as a DOM overlay with keyboard shortcuts |
 | `tools/` | Headless Blender export (`export-levels.mjs`, `blender/export_gltf.py`) and the Vite plugin that hot-reloads levels |
-| `games/tokyo-station` | The game. For now: the greybox movement sandbox, HUD and wiring |
+| `games/tokyo-station` | The game: levels, the station round (`src/round/`: yen, fares, ticket machine, gates, train), HUD and wiring |
 
 ## Conventions
 
@@ -91,7 +95,11 @@ The player's forward at yaw 0 is Blender **+Y**. 1 Blender unit = 1 m.
 | Marker `type` = `player_spawn` | Where the player's feet start, facing the empty's +Y axis |
 | Marker `type` = `chaser_spawn` | Where the chaser starts |
 | Marker `type` = `chokepoint` | A place a fleeing player will probably pass (in M3: ticket machines, gates, platforms). The chaser lies in wait here when it has lost you |
-| Other marker types | Planned: `money_spawn`, `interact`, `train_door` |
+| Marker `type` = `money_spawn` | Yen lying around. Custom property `value`: 1, 5, 10, 50, 100, 500, 1000, 5000 or 10000 |
+| Marker `type` = `interact` | Something to use with E. Custom property `action`: `ticket_machine` |
+| Marker `type` = `gate` | A ticket gate: on the floor in the middle of a passage (1.2 m wide), facing along it. The game adds the flaps |
+| Marker `type` = `train_door` | A train door opening: on the floor, facing out. The game adds the doors, which shut at departure |
+| Mesh `train-interior_col_trigger` | Inside the train: be in here with a valid ticket when the doors shut to win |
 | Custom property `surface` | Greybox material for the mesh: `floor`, `wall`, `stairs`, `ramp`, `steep`, `platform` or `prop`. Meshes without it keep their Blender material (base colour etc. via glTF) |
 | Empty with custom property `label` | A floating text label |
 
@@ -140,6 +148,30 @@ and how far away he is.
   path he speeds up again (x1.15). He never teleports.
 - **Caught** within 0.9 m: game over, R to restart. He waits while the menu is open.
 
+## The station round (M3)
+
+`tokyo_station.blend`: a greybox Tokyo Station with a concourse (pillars, kiosks, crates,
+a raised walkway loop and a dead-end pocket), three ticket machines, a gate line, a
+platform hall with two flights up to track 14, and the Hikari 507 to Kyoto.
+
+- You have 4 minutes (station clock 14:28 → departs 14:32, tunable in "Round"). Yen
+  (¥16,000 in all) lies around the concourse; the Kyoto fare is ¥12,650 unreserved, so
+  you need most of it, including the ¥5,000 note at the back of the dead end. Coins
+  jingle as you pick them up (the chaser can hear that).
+- **Ticket machine** (JR Central Tōkaidō style, Japanese and English): destination →
+  seat type (unreserved / reserved +¥1,090) → passengers → pay by feeding in coins and
+  notes one at a time → ticket and change as coins and notes. Like real machines it
+  won't take ¥1 or ¥5 coins. Every screen takes a moment and every press beeps; the
+  printer is loud. The world keeps running while you're at the machine.
+  Fares are plausible, not real.
+- **Gates** open for anyone with a ticket (and for the chaser) and chime and stay shut
+  without one. They can't be jumped.
+- **Train**: board with a valid ticket (right destination) and the doors close 3 s later;
+  be inside when they shut to win. Without one the conductor stops you. At departure the
+  doors shut regardless.
+- Lose if the salaryman catches you or the train leaves. The machines, the gates and the
+  platform stairs are his chokepoints.
+
 ## Test room
 
 `movement_sandbox.blend` has stairs (17 cm station stairs, then 20 cm escalator-like steps), ramps at 15°/30°/44°
@@ -152,6 +184,7 @@ a low-ceiling pillar hall and a long runway with 10 m markers for bunny-hopping.
 - The bundle is ~5 MB (1.8 MB gzipped), mostly Rapier's inlined WASM. Fine for now;
   switch to the non-compat Rapier build if load time matters.
 - No ladders, water or surf yet.
+- Gate vaulting (planned) isn't in yet: the gates can't be climbed.
 - Tuning step height, slope or hull size doesn't rebuild the chaser's navmesh (saving
   the level does).
 - Recast adds ~730 kB (220 kB gzipped) to the bundle.

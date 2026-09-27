@@ -24,12 +24,19 @@ import {
 } from "@slop/ai";
 import { NavMeshHelper } from "@recast-navigation/three";
 import { ChaserView } from "./chaserView";
+import { findFocus } from "@slop/interaction";
+import { ScreenPanel } from "@slop/ui-screens";
+import { lineOfSight } from "@slop/ai";
+import { StationRound } from "./round/stationRound";
+import { RoundView, Sfx } from "./round/roundView";
+import { destination } from "./round/fares";
+import { formatYen } from "./round/yen";
 import { surfaceColors, type Surface } from "./levels/surfaces";
 import { gridMaterial } from "./gridMaterial";
 import { createHud } from "./hud";
 import "./style.css";
 
-type Action = "forward" | "back" | "left" | "right" | "jump" | "crouch" | "walk" | "reset";
+type Action = "forward" | "back" | "left" | "right" | "jump" | "crouch" | "walk" | "reset" | "use";
 
 const bindings: Record<Action, string[]> = {
   forward: ["KeyW", "ArrowUp"],
@@ -40,6 +47,7 @@ const bindings: Record<Action, string[]> = {
   crouch: ["KeyC", "ControlLeft"],
   walk: ["ShiftLeft"],
   reset: ["KeyR"],
+  use: ["KeyE"],
 };
 
 /** Levels exported from assets-src/levels/*.blend by `pnpm export-levels`. Pick with ?level=<name>. */
@@ -130,16 +138,45 @@ async function main() {
       scene.add(navHelper);
     }
   };
-  let caught = false;
-  const caughtScreen = document.querySelector<HTMLElement>("#caught")!;
+  // The station round (only on levels that have machines, gates and a train).
+  const sfx = new Sfx();
+  let round: StationRound | null = null;
+  let roundView: RoundView | null = null;
+  const setupRound = () => {
+    round?.dispose();
+    roundView?.dispose();
+    round = StationRound.supports(level) ? new StationRound(world, level) : null;
+    roundView = round ? new RoundView(round) : null;
+    if (roundView) scene.add(roundView.root);
+  };
+  setupRound();
+  const machinePanel = new ScreenPanel(document.body, "jr-machine");
+  let ended = false;
+  const endScreen = document.querySelector<HTMLElement>("#end")!;
+  const showEnd = (kind: "won" | "caught" | "missed", reason: string) => {
+    ended = true;
+    closeMachine(false);
+    const titles = { won: ["間に合った！", "Made it!"], caught: ["捕まった！", "Caught!"], missed: ["乗り遅れ", "Missed it"] };
+    const [ja, en] = titles[kind];
+    endScreen.dataset.kind = kind;
+    endScreen.querySelector("h1")!.textContent = `${ja}  ${en}`;
+    endScreen.querySelector(".reason")!.textContent = reason;
+    endScreen.querySelector(".stats")!.textContent = round
+      ? `Time ${Math.floor(round.elapsed / 60)}:${String(Math.floor(round.elapsed % 60)).padStart(2, "0")}  ·  ` +
+        `Yen picked up ${formatYen(round.pickups.items.filter((p) => p.taken).reduce((a, p) => a + p.value, 0))} of ${formatYen(round.pickups.total)}`
+      : "";
+    endScreen.hidden = false;
+  };
   const newRound = () => {
-    caught = false;
-    caughtScreen.hidden = true;
+    ended = false;
+    endScreen.hidden = true;
+    closeMachine(false);
     player.teleport(level.spawn.position);
     look.yaw = level.spawn.yaw;
     look.pitch = 0;
     topSpeed = 0;
     chaser.respawn(chaserSpawn());
+    round?.reset();
   };
   const rig = new FpsCameraRig(camera, cameraFeel);
   const look = new MouseLook(canvas);
@@ -208,6 +245,13 @@ async function main() {
     jumpRadius: [0, 40, 0.5],
     stride: [0.5, 4, 0.1],
   });
+  const roundTuning = { departsIn: 240, boardingDelay: 3, screenDelay: 0.35, issueTime: 2.2 };
+  tuning.addGroup("Round", roundTuning, {
+    departsIn: [30, 900, 10],
+    boardingDelay: [0, 10, 0.5],
+    screenDelay: [0, 2, 0.05],
+    issueTime: [0, 8, 0.1],
+  });
   tuning.addGroup("Simulation", simulation, { tickRate: [20, 144, 1] });
   tuning.addPersistence();
   tuning.load();
@@ -219,6 +263,12 @@ async function main() {
     loop.tickRate = simulation.tickRate;
     updateNavHelper();
     chaserView.root.visible = chase.enabled;
+    if (round) {
+      round.settings.departsIn = roundTuning.departsIn;
+      round.settings.boardingDelay = roundTuning.boardingDelay;
+      round.machineSettings.screenDelay = roundTuning.screenDelay;
+      round.machineSettings.issueTime = roundTuning.issueTime;
+    }
   };
   tuning.onChange(applyTuning);
 
@@ -234,9 +284,14 @@ async function main() {
         player.teleport(level.spawn.position);
         look.yaw = level.spawn.yaw;
       }
-      if (caught) return;
+      if (ended) return;
+      if (round?.machine) {
+        player.tick({ forward: 0, side: 0, jumpPresses: 0, jumpHeld: false, crouch: false, walk: false, yaw: look.yaw }, dt);
+      } else {
+        useFocused();
+      }
       const axis = (a: Action, b: Action) => (input.isDown(a) ? 1 : 0) - (input.isDown(b) ? 1 : 0);
-      player.tick(
+      if (!round?.machine) player.tick(
         {
           forward: axis("forward", "back"),
           side: axis("right", "left"),
@@ -249,9 +304,12 @@ async function main() {
         dt,
       );
       noise.update(player, noises);
-      // The chaser waits while the menu is open.
-      if (chase.enabled && look.isLocked) {
-        const p = player.feet;
+      const p = player.feet;
+      round?.tick(dt, { x: p.x, y: p.y, z: p.z }, chase.enabled ? { ...chaser.body.feet } : null, noises);
+      const heard = noises.drain();
+      for (const e of heard) sfx.noise(e, camera.position, 1);
+      // The chaser waits while the menu is open (but not while you're at a machine).
+      if (chase.enabled && (look.isLocked || machinePanel.isOpen)) {
         chaser.update(
           dt,
           {
@@ -260,15 +318,14 @@ async function main() {
             velocity: { ...player.velocity },
             colliderHandle: player.colliderHandle,
           },
-          noises.drain(),
+          heard,
         );
         if (chaser.events.caught) {
-          caught = true;
-          caughtScreen.hidden = false;
+          round?.caught();
+          if (!round) showEnd("caught", "The salaryman caught you.");
         }
-      } else {
-        noises.drain();
       }
+      if (round?.over && !ended) showEnd(round.state as "won" | "caught" | "missed", round.reason);
       world.step();
       rig.afterTick(player);
       topSpeed = Math.max(topSpeed, player.horizontalSpeed);
@@ -277,6 +334,12 @@ async function main() {
       stats.push(frameDt);
       rig.update(player, alpha, look.yaw, look.pitch, frameDt);
       chaserView.update(chaser, alpha, frameDt, camera, chase.enabled ? chase.footstepVolume : 0);
+      roundView?.update(frameDt);
+      if (machinePanel.isOpen) {
+        if (!round?.machine) closeMachine(false);
+        else machinePanel.render();
+      }
+      updatePrompt();
       renderer.render(scene, camera);
       hud.update({
         speed: player.horizontalSpeed,
@@ -294,6 +357,19 @@ async function main() {
           ? {
               awareness: chaser.awareness,
               distance: Math.hypot(chaser.body.feet.x - player.feet.x, chaser.body.feet.z - player.feet.z),
+            }
+          : null,
+        round: round
+          ? {
+              train: `${round.target.name.ja} ${destination(round.target.destination).ja}  ${round.target.name.en} → ${destination(round.target.destination).en}  ·  ${round.target.track}番線 Track ${round.target.track}`,
+              clock: `発車 Departs ${round.departureClock()}  ·  ${round.clock()}  ·  ${formatCountdown(round.timeLeft)}`,
+              wallet: `${formatYen(round.wallet.total)}  ·  ${
+                round.ticket
+                  ? `きっぷ ${destination(round.ticket.destination).en}${round.validFor(round.ticket) ? " ✓" : " ✗ wrong"}`
+                  : "きっぷなし No ticket"
+              }`,
+              urgent: round.timeLeft < 30,
+              toasts: round.toasts.map((t) => t.text),
             }
           : null,
       });
@@ -323,6 +399,8 @@ async function main() {
           chaser.setNavigation(nav);
           director.chokepoints = chokepoints();
           updateNavHelper();
+          setupRound();
+          applyTuning();
           console.info(`[levels] reloaded ${url}`);
         } catch (err) {
           console.error(`[levels] couldn't reload ${url}`, err);
@@ -333,6 +411,42 @@ async function main() {
       console.error(`[levels] export of ${file} failed:\n${message}`);
     });
   }
+
+  // Interaction: look at a ticket machine and press E.
+  const prompt = document.querySelector<HTMLElement>("#prompt")!;
+  const eyeAndForward = () => {
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    return { eye: camera.position.clone(), forward };
+  };
+  const focused = () => {
+    if (!round || round.over || round.machine) return null;
+    const { eye, forward } = eyeAndForward();
+    return findFocus(eye, forward, round.machines, undefined, (from, to) => !lineOfSight(world, from, to, [player.colliderHandle]));
+  };
+  const updatePrompt = () => {
+    const f = look.isLocked ? focused() : null;
+    prompt.hidden = !f;
+    if (f) prompt.textContent = `E  ${f.prompt}`;
+  };
+  const useFocused = () => {
+    if (input.consumePresses("use") === 0) return;
+    const f = focused();
+    if (!f || !round) return;
+    const machine = round.useMachine(f.position, noises);
+    machinePanel.open(machine);
+    look.unlock();
+  };
+  /** Leave the machine. `relock` from inside a click or key press (browsers only allow pointer lock then). */
+  function closeMachine(relock: boolean) {
+    if (!machinePanel.isOpen) return;
+    machinePanel.close();
+    round?.machine?.abandon();
+    if (relock) look.lock().catch(() => (overlay.hidden = false));
+    else if (!look.isLocked && !ended) overlay.hidden = false;
+  }
+  machinePanel.onPress = () => {
+    if (round?.machine?.closed) closeMachine(true);
+  };
 
   const resize = () => {
     const w = window.innerWidth;
@@ -348,10 +462,11 @@ async function main() {
   const overlay = document.querySelector<HTMLElement>("#overlay")!;
   overlay.addEventListener("click", () => {
     chaserView.unlockAudio();
+    sfx.unlock();
     void look.lock();
   });
   look.onLockChanged((locked) => {
-    overlay.hidden = locked;
+    overlay.hidden = locked || machinePanel.isOpen || ended;
     if (!locked) input.releaseAll();
   });
   // Ctrl is a crouch key and Ctrl+W closes tabs: ask before leaving mid-game.
@@ -362,6 +477,11 @@ async function main() {
   applyTuning();
   document.querySelector("#loading")?.remove();
   loop.start();
+}
+
+function formatCountdown(seconds: number): string {
+  const s = Math.ceil(seconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} left`;
 }
 
 function textSprite(text: string, position: [number, number, number]): THREE.Sprite {

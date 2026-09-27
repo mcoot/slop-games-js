@@ -23,5 +23,36 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #111; color:
 #threat[hidden] { display: none; }
 #threat[data-awareness="searching"] { color: #f2c14e; }
 #threat[data-awareness="hunting"] { color: #fff; background: rgba(170, 30, 40, 0.85); }
-#caught { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(90, 8, 14, 0.55); }
-#caught[hidden] { display: none; }
+#end { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(90, 8, 14, 0.55); }
+#end[data-kind="won"] { background: rgba(10, 70, 40, 0.55); }
+#end[data-kind="missed"] { background: rgba(40, 40, 60, 0.6); }
+#end[hidden] { display: none; }
+#end .stats { font-size: 13px; }
+#round { position: fixed; left: 10px; top: 48px; padding: 8px 12px; border-radius: 8px; background: rgba(10, 20, 40, 0.8); white-space: pre; font: 600 13px/1.6 ui-monospace, monospace; color: #ffcf6e; pointer-events: none; }
+#round.urgent { color: #ff7a6e; }
+#round[hidden], #toasts[hidden], #prompt[hidden] { display: none; }
+#toasts { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); text-align: center; white-space: pre; font: 600 15px/1.7 system-ui, sans-serif; text-shadow: 0 1px 3px #000; pointer-events: none; }
+#prompt { position: fixed; left: 50%; top: calc(50% + 28px); transform: translateX(-50%); padding: 4px 10px; border-radius: 6px; background: var(--panel); font: 600 14px/1.5 system-ui, sans-serif; pointer-events: none; }
+.card .levels { margin: 14px 0 0; font-size: 12px; }
+.card .levels a { color: var(--accent); }
+
+/* Ticket machine: JR Central (Tōkaidō Shinkansen) style, orange on white. */
+.screen-panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; border-radius: 10px; background: #f5f3ee; color: #222; box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 0 10px #3b3f45; font: 15px/1.4 system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+.screen-panel[hidden] { display: none; }
+.screen-panel .screen-head { padding: 14px 20px; background: #f77321; color: #fff; }
+.screen-panel .title { font-size: 22px; font-weight: 700; }
+.screen-panel .subtitle { opacity: .92; font-size: 13px; }
+.screen-panel .lines { padding: 12px 20px 0; font-size: 15px; }
+.screen-panel .lines div:nth-child(2) { font-size: 20px; font-weight: 700; }
+.screen-panel .buttons { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; padding: 16px 20px; }
+.screen-panel[data-screen="pay"] .buttons { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.screen-panel .footer { display: flex; gap: 10px; justify-content: flex-end; padding: 0 20px 16px; }
+.screen-panel button { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 14px 10px 30px; border: 0; border-radius: 8px; background: #fff; color: #1b2a4a; box-shadow: 0 2px 0 #c9c4b8, inset 0 0 0 2px #1b5fa8; font: inherit; font-weight: 700; cursor: pointer; text-align: left; }
+.screen-panel button:hover:not(:disabled) { background: #e9f1fb; }
+.screen-panel button:disabled { opacity: .45; cursor: default; }
+.screen-panel button.primary { background: #1b5fa8; color: #fff; }
+.screen-panel button.cancel { box-shadow: 0 2px 0 #c9c4b8, inset 0 0 0 2px #b8322a; color: #b8322a; }
+.screen-panel button .key { position: absolute; left: 10px; top: 12px; font-size: 11px; opacity: .6; }
+.screen-panel button .sub { font-weight: 500; font-size: 12px; opacity: .75; }
+.screen-panel .status { padding: 0 20px 14px; color: #b8322a; font-weight: 700; }
+.screen-panel.busy .buttons { filter: grayscale(.4); }

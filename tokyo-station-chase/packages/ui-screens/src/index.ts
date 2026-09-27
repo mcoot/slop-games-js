@@ -54,6 +54,11 @@ export class ScreenPanel {
   private machine: ScreenMachine | null = null;
   private lastKey = "";
   private readonly onKey = (e: KeyboardEvent) => this.handleKey(e);
+  /**
+   * Called right after each press, inside the click or key event, so it can do
+   * things browsers only allow during a user gesture (e.g. re-lock the pointer).
+   */
+  onPress: (() => void) | null = null;
 
   constructor(
     parent: HTMLElement,
@@ -65,8 +70,10 @@ export class ScreenPanel {
     this.element.hidden = true;
     this.element.addEventListener("click", (e) => {
       const button = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-id]");
-      if (button && !button.disabled) this.machine?.press(button.dataset.id!);
+      if (!button || button.disabled || !this.machine) return;
+      this.machine.press(button.dataset.id!);
       this.render();
+      this.onPress?.();
     });
     parent.appendChild(this.element);
   }
@@ -125,6 +132,7 @@ export class ScreenPanel {
     e.preventDefault();
     this.machine.press(target.id);
     this.render();
+    this.onPress?.();
   }
 }
 

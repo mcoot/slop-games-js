@@ -44,6 +44,9 @@ importers:
       '@slop/input':
         specifier: workspace:*
         version: link:../../packages/input
+      '@slop/interaction':
+        specifier: workspace:*
+        version: link:../../packages/interaction
       '@slop/level-loader':
         specifier: workspace:*
         version: link:../../packages/level-loader
@@ -53,6 +56,9 @@ importers:
       '@slop/tuning':
         specifier: workspace:*
         version: link:../../packages/tuning
+      '@slop/ui-screens':
+        specifier: workspace:*
+        version: link:../../packages/ui-screens
       three:
         specifier: ^0.186.1
         version: 0.186.1
