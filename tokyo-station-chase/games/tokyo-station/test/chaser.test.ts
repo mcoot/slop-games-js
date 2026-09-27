@@ -138,7 +138,7 @@ describe("chaser", () => {
     const hide = { x: -44, y: 0.05, z: -73 };
     const c = await makeChase(hide, { x: 40, y: 0.05, z: 0 }, { seed: 7 });
     const guesses: Vec3[] = [];
-    c.run(120, {}, () => {
+    c.run(180, {}, () => {
       const d = c.chaser.directive;
       if (d && d.kind === "hint" && guesses.at(-1) !== d.position) guesses.push(d.position);
       return c.caught() >= 0;

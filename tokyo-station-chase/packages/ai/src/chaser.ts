@@ -40,9 +40,9 @@ export interface ChaserSettings {
 
 export const defaultChaser: ChaserSettings = {
   chaseSpeed: 5.7,
-  searchSpeed: 6.6,
+  searchSpeed: 6.3,
   catchUpDistance: 30,
-  catchUpMultiplier: 1.3,
+  catchUpMultiplier: 1.15,
   sightRange: 45,
   fovDeg: 120,
   nearSense: 2,

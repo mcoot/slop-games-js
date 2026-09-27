@@ -41,10 +41,10 @@ export interface HintDirectorSettings {
 }
 
 export const defaultHintDirector: HintDirectorSettings = {
-  interval: 6,
-  radiusStart: 40,
-  radiusMin: 15,
-  shrinkRate: 0.6,
+  interval: 9,
+  radiusStart: 45,
+  radiusMin: 20,
+  shrinkRate: 0.3,
 };
 
 /**

@@ -131,13 +131,13 @@ and how far away he is.
   through `NoiseBus` (ticket machines and gates will in M3).
 - **Losing you.** When you break line of sight he heads to where you were going
   (last seen position plus velocity), looks around, then starts searching.
-- **Director.** While searching he never goes cold: every 6 s he gets a new place to
+- **Director.** While searching he never goes cold: every 9 s he gets a new place to
   look, alternating between a fuzzy hint (a random reachable point within a radius of
-  where you really are, shrinking from 40 m to 15 m the longer you stay hidden) and
+  where you really are, shrinking from 45 m to 20 m the longer you stay hidden) and
   the chokepoint nearest you.
 - **Speed.** In sight he's a little slower than your run (5.7 vs 6.0 m/s), so good
-  movement opens a gap. Out of sight he's faster (6.6 m/s), and more than 30 m away by
-  path he speeds up again (x1.3). He never teleports.
+  movement opens a gap. Out of sight he's faster (6.3 m/s), and more than 30 m away by
+  path he speeds up again (x1.15). He never teleports.
 - **Caught** within 0.9 m: game over, R to restart. He waits while the menu is open.
 
 ## Test room
