@@ -3,15 +3,15 @@ import type { Chaser } from "@slop/ai";
 
 /**
  * How the chaser looks and sounds: a greybox salaryman (capsule body, head, a hint
- * of a tie) that bobs as it runs, and footsteps that get louder and pan as it closes in.
+ * of a tie) that bobs as it runs; its footsteps are reported through `onStep`.
  */
 export class ChaserView {
   readonly root = new THREE.Group();
   private readonly figure = new THREE.Group();
   private bobPhase = 0;
   private stepDistance = 0;
-  private audio: AudioContext | null = null;
-  private noise: AudioBuffer | null = null;
+  /** Called for each footstep, with where it landed and how hard (0..1). */
+  onStep: ((position: THREE.Vector3, weight: number) => void) | null = null;
 
   constructor(height: number, radius: number) {
     const suit = new THREE.MeshStandardMaterial({ color: 0x23262d, roughness: 0.8 });
@@ -33,19 +33,7 @@ export class ChaserView {
     this.root.add(this.figure);
   }
 
-  /** Call when the page gets a user gesture, so audio is allowed to start. */
-  unlockAudio(): void {
-    if (!this.audio) {
-      this.audio = new AudioContext();
-      const len = Math.floor(this.audio.sampleRate * 0.12);
-      this.noise = this.audio.createBuffer(1, len, this.audio.sampleRate);
-      const data = this.noise.getChannelData(0);
-      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
-    }
-    void this.audio.resume();
-  }
-
-  update(chaser: Chaser, alpha: number, frameDt: number, listener: THREE.Camera, volume: number): void {
+  update(chaser: Chaser, alpha: number, frameDt: number): void {
     const p0 = chaser.body.prevFeet;
     const p1 = chaser.body.feet;
     this.root.position.set(
@@ -64,33 +52,8 @@ export class ChaserView {
       this.stepDistance += speed * frameDt;
       if (this.stepDistance > 1.6) {
         this.stepDistance = 0;
-        this.footstep(listener, volume);
+        this.onStep?.(this.root.position.clone(), Math.min(1, speed / 5));
       }
     }
-  }
-
-  private footstep(listener: THREE.Camera, volume: number): void {
-    const ctx = this.audio;
-    if (!ctx || !this.noise || ctx.state !== "running" || volume <= 0) return;
-    const toChaser = this.root.position.clone().sub(listener.position);
-    const distance = toChaser.length();
-    const gain = volume * Math.min(1, 6 / Math.max(distance, 1)) ** 1.3;
-    if (gain < 0.01) return;
-    // Pan by which side of the listener it's on.
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(listener.quaternion);
-    const pan = THREE.MathUtils.clamp(toChaser.normalize().dot(right), -1, 1);
-
-    const src = ctx.createBufferSource();
-    src.buffer = this.noise;
-    src.playbackRate.value = 0.8 + Math.random() * 0.3;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 500 + 1500 * Math.min(1, 8 / Math.max(distance, 1));
-    const amp = ctx.createGain();
-    amp.gain.value = gain;
-    const panner = ctx.createStereoPanner();
-    panner.pan.value = pan * 0.8;
-    src.connect(filter).connect(amp).connect(panner).connect(ctx.destination);
-    src.start();
   }
 }

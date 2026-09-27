@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import type { NoiseEvent } from "@slop/ai";
 import type { StationRound } from "./stationRound";
 import { isNote, type Denomination } from "./yen";
 
@@ -14,8 +13,8 @@ const COIN_COLORS: Partial<Record<Denomination, number>> = {
 const NOTE_COLORS: Partial<Record<Denomination, number>> = { 1000: 0x6f8fb8, 5000: 0xb88fb5, 10000: 0xb89a6f };
 
 /**
- * What the round looks and sounds like: spinning coins and notes, gate flaps,
- * train doors, and machine/gate/pickup sounds for the player.
+ * What the round looks like: spinning coins and notes, gate flaps
+ * and train doors.
  */
 export class RoundView {
   readonly root = new THREE.Group();
@@ -108,55 +107,4 @@ function noteMesh(value: Denomination): THREE.Object3D {
     new THREE.BoxGeometry(0.42, 0.2, 0.01),
     new THREE.MeshStandardMaterial({ color: NOTE_COLORS[value] ?? 0x88aa88, roughness: 0.8, emissive: 0x111111 }),
   );
-}
-
-/** Tiny synthesised sound effects, so the player hears what the chaser hears. */
-export class Sfx {
-  private ctx: AudioContext | null = null;
-
-  unlock(): void {
-    this.ctx ??= new AudioContext();
-    void this.ctx.resume();
-  }
-
-  /** Play something for a noise event near the listener. */
-  noise(e: NoiseEvent, listener: THREE.Vector3, volume: number): void {
-    const d = Math.hypot(e.position.x - listener.x, e.position.z - listener.z);
-    const gain = volume * Math.min(1, 3 / Math.max(d, 1));
-    switch (e.kind) {
-      case "machine-beep":
-        return this.tone([1320], 0.08, gain * 0.25);
-      case "machine-coin":
-      case "yen":
-        return this.tone([2200, 3100], 0.05, gain * 0.2);
-      case "machine-note":
-        return this.tone([180], 0.3, gain * 0.2, "sawtooth");
-      case "machine-print":
-        return this.tone([440, 440, 440, 440], 0.12, gain * 0.15, "square");
-      case "machine-change":
-        return this.tone([2500, 2900, 2300, 3100, 2700], 0.04, gain * 0.2);
-      case "gate-beep":
-        return this.tone([1760], 0.1, gain * 0.25);
-      case "gate-refuse":
-        return this.tone([988, 784], 0.18, gain * 0.3);
-    }
-  }
-
-  /** A sequence of short tones. */
-  private tone(freqs: number[], each: number, gain: number, type: OscillatorType = "sine"): void {
-    const ctx = this.ctx;
-    if (!ctx || ctx.state !== "running" || gain < 0.005) return;
-    freqs.forEach((f, i) => {
-      const t = ctx.currentTime + i * each * 1.2;
-      const osc = ctx.createOscillator();
-      osc.type = type;
-      osc.frequency.value = f;
-      const amp = ctx.createGain();
-      amp.gain.setValueAtTime(gain, t);
-      amp.gain.exponentialRampToValueAtTime(0.0001, t + each);
-      osc.connect(amp).connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + each + 0.02);
-    });
-  }
 }

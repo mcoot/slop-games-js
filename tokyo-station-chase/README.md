@@ -51,6 +51,7 @@ only `games/tokyo-station` knows about Tokyo, yen or trains.
 | `@slop/interaction` | Look-at-and-press: which interactable is in reach and in view |
 | `@slop/ui-screens` | Screen UIs (machines, kiosks) as state machines, drawn as a DOM overlay with keyboard shortcuts |
 | `@slop/signage` | Wayfinding signs from Blender markers: bilingual rows drawn to canvas textures, arrows chosen per side from a route direction |
+| `@slop/audio` | Web Audio, all synthesised: positional one-shots, ambience beds, surface footsteps, melodies, speech-synthesis announcements |
 | `tools/` | Headless Blender export (`export-levels.mjs`, `blender/export_gltf.py`) and the Vite plugin that hot-reloads levels |
 | `games/tokyo-station` | The game: levels, the station round (`src/round/`: yen, fares, ticket machine, gates, train), HUD and wiring |
 
@@ -147,6 +148,16 @@ arrow from the navmesh route to the nearest match, separately for each side of a
 hanging sign, so signs stay correct when the layout changes. Departure boards show
 the next four trains from the live station clock, with the Hikari 507 flashing in its
 last minute.
+
+### Sound
+
+Everything is synthesised (no audio files): ambience beds for the concourse, B1 and
+the platform that crossfade as you move; your footsteps by surface (tile, concrete,
+metal, wood) and loudness; the chaser's footsteps, positional; machine beeps, the
+printer, coins and gates. The PA plays bilingual announcements (the browser's text
+to speech after a chime) at 200 s, 60 s and 12 s before departure, general ones in
+between, and an original departure jingle (not a real JR melody) in the last minute.
+It's loudest on the platform. Tuning → Audio has volumes and an announcements switch.
 
 ### The movement sandbox
 

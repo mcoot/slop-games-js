@@ -35,6 +35,9 @@ importers:
       '@slop/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@slop/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
       '@slop/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -86,6 +89,8 @@ importers:
       three:
         specifier: ^0.186.1
         version: 0.186.1
+
+  packages/audio: {}
 
   packages/core: {}
 

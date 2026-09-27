@@ -23,6 +23,7 @@
     "three": "^0.186.1",
     "@slop/ui-screens": "workspace:*",
     "@slop/interaction": "workspace:*",
-    "@slop/signage": "workspace:*"
+    "@slop/signage": "workspace:*",
+    "@slop/audio": "workspace:*"
   }
 }

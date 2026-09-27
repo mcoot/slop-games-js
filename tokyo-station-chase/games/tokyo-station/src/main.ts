@@ -28,7 +28,8 @@ import { findFocus } from "@slop/interaction";
 import { ScreenPanel } from "@slop/ui-screens";
 import { lineOfSight } from "@slop/ai";
 import { StationRound } from "./round/stationRound";
-import { RoundView, Sfx } from "./round/roundView";
+import { RoundView } from "./round/roundView";
+import { StationAudio } from "./stationAudio";
 import { destination } from "./round/fares";
 import { formatYen } from "./round/yen";
 import { Atmosphere } from "./atmosphere";
@@ -125,7 +126,8 @@ async function main() {
     }
   };
   // The station round (only on levels that have machines, gates and a train).
-  const sfx = new Sfx();
+  const audio = new StationAudio(level.solids);
+  chaserView.onStep = (position, weight) => audio.chaserStep(position, weight * chase.footstepVolume);
   let round: StationRound | null = null;
   let roundView: RoundView | null = null;
   const setupRound = () => {
@@ -178,6 +180,7 @@ async function main() {
     topSpeed = 0;
     chaser.respawn(chaserSpawn());
     round?.reset();
+    audio.reset();
   };
   const rig = new FpsCameraRig(camera, cameraFeel);
   const look = new MouseLook(canvas);
@@ -269,6 +272,7 @@ async function main() {
     bloomThreshold: [0, 2, 0.01],
     haze: [0, 0.05, 0.001],
   });
+  tuning.addGroup("Audio", audio.settings, { master: [0, 1, 0.01], ambience: [0, 1, 0.01], announcements: true });
   tuning.addGroup("Simulation", simulation, { tickRate: [20, 144, 1] });
   tuning.addPersistence();
   tuning.load();
@@ -279,6 +283,7 @@ async function main() {
     chaser.body.applySettings();
     loop.tickRate = simulation.tickRate;
     atmosphere.apply();
+    audio.apply();
     updateNavHelper();
     chaserView.root.visible = chase.enabled;
     if (round) {
@@ -323,10 +328,15 @@ async function main() {
       );
       noise.update(player, noises);
       const p = player.feet;
+      const wasBoarding = round?.state === "boarding";
       round?.tick(dt, { x: p.x, y: p.y, z: p.z }, chase.enabled ? { ...chaser.body.feet } : null, noises);
       const heard = noises.drain();
       const zones = triggersAt(world, level, { x: p.x, y: p.y + 0.9, z: p.z });
-      for (const e of heard) sfx.noise(e, camera.position, 1);
+      audio.noises(heard);
+      if (round) {
+        audio.updateRound(round);
+        if (!wasBoarding && round.state === "boarding") audio.boarding();
+      }
       // The chaser waits while the menu is open (but not while you're at a machine).
       if (chase.enabled && (look.isLocked || machinePanel.isOpen)) {
         chaser.update(
@@ -353,7 +363,8 @@ async function main() {
     render(alpha, frameDt) {
       stats.push(frameDt);
       rig.update(player, alpha, look.yaw, look.pitch, frameDt);
-      chaserView.update(chaser, alpha, frameDt, camera, chase.enabled ? chase.footstepVolume : 0);
+      chaserView.update(chaser, alpha, frameDt);
+      audio.update(camera, round !== null);
       roundView?.update(frameDt);
       if (round) for (const b of boards) b.update(round.clockSeconds);
       if (machinePanel.isOpen) {
@@ -426,6 +437,7 @@ async function main() {
           updateNavHelper();
           setupRound();
           setupWayfinding();
+          audio.setLevel(level.solids);
           applyTuning();
           console.info(`[levels] reloaded ${url}`);
         } catch (err) {
@@ -488,8 +500,7 @@ async function main() {
   // Click to play; Esc (handled by the browser) releases the mouse and shows the menu.
   const overlay = document.querySelector<HTMLElement>("#overlay")!;
   overlay.addEventListener("click", () => {
-    chaserView.unlockAudio();
-    sfx.unlock();
+    audio.unlock();
     void look.lock();
   });
   look.onLockChanged((locked) => {
