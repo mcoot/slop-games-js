@@ -1,0 +1,12 @@
+{
+  "name": "@slop/signage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  }
+}

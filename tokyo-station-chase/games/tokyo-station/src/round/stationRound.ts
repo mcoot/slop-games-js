@@ -100,6 +100,11 @@ export class StationRound {
     return ticket !== null && ticket.destination === this.target.destination && ticket.passengers >= 1;
   }
 
+  /** Station clock in seconds since midnight. */
+  get clockSeconds(): number {
+    return this.target.clockStart * 60 + this.elapsed;
+  }
+
   /** Station clock, "14:31:05". */
   clock(): string {
     return formatClock(this.target.clockStart * 60 + this.elapsed);

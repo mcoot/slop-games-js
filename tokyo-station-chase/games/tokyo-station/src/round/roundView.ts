@@ -94,7 +94,8 @@ function coinMesh(value: Denomination): THREE.Object3D {
   const radius = value === 500 ? 0.16 : value >= 100 ? 0.14 : 0.12;
   const mesh = new THREE.Mesh(
     new THREE.CylinderGeometry(radius, radius, 0.03, 20),
-    new THREE.MeshStandardMaterial({ color: COIN_COLORS[value] ?? 0xcccccc, metalness: 0.8, roughness: 0.3 }),
+    // Not fully metallic: there's no environment map to reflect, so metal would render black.
+    new THREE.MeshStandardMaterial({ color: COIN_COLORS[value] ?? 0xcccccc, metalness: 0.25, roughness: 0.35, emissive: COIN_COLORS[value] ?? 0xcccccc, emissiveIntensity: 0.25 }),
   );
   mesh.rotation.x = Math.PI / 2;
   const holder = new THREE.Group();

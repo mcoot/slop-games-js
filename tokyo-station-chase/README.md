@@ -17,6 +17,7 @@ pnpm test       # headless movement tests (Rapier runs in Node)
 pnpm typecheck
 pnpm build      # static site in games/tokyo-station/dist
 pnpm export-levels  # re-export Blender levels to .glb (needs Blender, see "Levels")
+pnpm bake-lighting  # re-bake the station's lighting (minutes; see "Lighting")
 ```
 
 Click to capture the mouse. Esc releases it and opens the **Tuning** panel
@@ -49,6 +50,7 @@ only `games/tokyo-station` knows about Tokyo, yen or trains.
 | `@slop/ai` | Navmesh (Recast via recast-navigation-js), perception (sight, noise), search directors and the chaser. Game-agnostic: works with any level and `PlayerController` |
 | `@slop/interaction` | Look-at-and-press: which interactable is in reach and in view |
 | `@slop/ui-screens` | Screen UIs (machines, kiosks) as state machines, drawn as a DOM overlay with keyboard shortcuts |
+| `@slop/signage` | Wayfinding signs from Blender markers: bilingual rows drawn to canvas textures, arrows chosen per side from a route direction |
 | `tools/` | Headless Blender export (`export-levels.mjs`, `blender/export_gltf.py`) and the Vite plugin that hot-reloads levels |
 | `games/tokyo-station` | The game: levels, the station round (`src/round/`: yen, fares, ticket machine, gates, train), HUD and wiring |
 
@@ -95,6 +97,10 @@ The player's forward at yaw 0 is Blender **+Y**. 1 Blender unit = 1 m.
 | Marker `type` = `player_spawn` | Where the player's feet start, facing the empty's +Y axis |
 | Marker `type` = `chaser_spawn` | Where the chaser starts |
 | Marker `type` = `patrol_point` | The chaser's calm patrol, walked in name order (`patrol-00`, `patrol-01`, ...) |
+| Mesh with custom properties `emissive` ("#rrggbb") and `light_power` (W) | A light fixture: glows in the game and lights the bake. Give it `collider` = `none` |
+| Empty with `type` = `sign` | A wayfinding sign (see "Wayfinding") |
+| Empty with `type` = `departure_board` | A departure board driven by the round clock. Custom properties `width`, `height` (m) |
+| Empty with `type` = `waypoint` | A named place signs can point at (e.g. `b1-centre`) |
 | Mesh `hide-<name>_col_trigger` | A hiding place: while you're in it and keeping still the director gives him no hints |
 | Marker `type` = `chokepoint` | A place a fleeing player will probably pass (in M3: ticket machines, gates, platforms). The chaser lies in wait here when it has lost you |
 | Marker `type` = `money_spawn` | Yen lying around. Custom property `value`: 1, 5, 10, 50, 100, 500, 1000, 5000 or 10000 |
@@ -112,6 +118,35 @@ Blender's duplicate suffix is ignored, so a copy named `pillar_col.001` is still
 collision mesh. three.js drops `.`, `:`, `/`, `[` and `]` from `Object3D.name` and turns
 spaces into underscores (`jumpbox-0.5` becomes `jumpbox-05`); the Blender name is kept in
 `userData.name`.
+
+### Lighting
+
+The station's lighting is baked in Blender: `pnpm bake-lighting` (about 5 minutes on
+an M3 Pro GPU) unwraps a second UV set ("lightmap") on every level mesh, lights the
+scene with an area light per fixture plus an afternoon sun and sky, bakes diffuse
+light with Cycles into `public/levels/tokyo_station.lightmap.jpg`, saves the UVs into
+the .blend and re-exports. In the game, lightmapped meshes use an unlit material
+multiplied by the bake, so static lighting costs nothing at runtime (no real-time
+lights or shadows). Fixtures glow and bloom; moving things (the chaser, coins,
+doors) get a hemisphere light tinted by the baked light around the player
+(`LightmapProbe`). ACES tone mapping and a light haze finish it. Everything is in
+Tuning → Atmosphere.
+
+Re-bake after moving geometry or fixtures. Hot reload still works without a re-bake:
+meshes added since the last bake fall back to real-time lit materials. Levels
+without a lightmap (the sandbox, `station-open`) keep the old sun-and-sky lighting.
+
+### Wayfinding
+
+Signs are empties with `type` = `sign` and flat custom properties: `style` (`yellow`
+for exits and the Shinkansen, `black` for everything else, `track` for platforms),
+`width`, `height`, `double_sided`, and up to four rows of `rowN_ja`, `rowN_en` and
+`rowN_to`. The face points along the empty's +Y. `rowN_to` is a marker-name prefix
+(`gate-`, `ticket-machine`, `train-door`, `b1-centre`...): the game draws each row's
+arrow from the navmesh route to the nearest match, separately for each side of a
+hanging sign, so signs stay correct when the layout changes. Departure boards show
+the next four trains from the live station clock, with the Hikari 507 flashing in its
+last minute.
 
 ### The movement sandbox
 
@@ -215,6 +250,6 @@ a low-ceiling pillar hall and a long runway with 10 m markers for bunny-hopping.
 - Gate vaulting (planned) isn't in yet: the gates can't be climbed.
 - Tuning step height, slope or hull size doesn't rebuild the chaser's navmesh (saving
   the level does).
-- Recast adds ~730 kB (220 kB gzipped) to the bundle.
+- Recast adds ~730 kB (220 kB gzipped) to the bundle; the station's lightmap is a ~0.9 MB JPEG.
 - Nothing checks that the committed .glb is up to date with its .blend. Saving with
   `pnpm dev` running keeps it in sync; otherwise run `pnpm export-levels`.

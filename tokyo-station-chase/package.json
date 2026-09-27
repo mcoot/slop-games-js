@@ -6,6 +6,7 @@
     "dev": "pnpm --filter @slop/tokyo-station dev",
     "build": "pnpm --filter @slop/tokyo-station build",
     "export-levels": "pnpm --filter @slop/tokyo-station export-levels",
+    "bake-lighting": "pnpm --filter @slop/tokyo-station bake-lighting",
     "typecheck": "tsc -p .",
     "test": "vitest run"
   },

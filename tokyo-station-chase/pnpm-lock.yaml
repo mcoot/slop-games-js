@@ -53,6 +53,9 @@ importers:
       '@slop/physics':
         specifier: workspace:*
         version: link:../../packages/physics
+      '@slop/signage':
+        specifier: workspace:*
+        version: link:../../packages/signage
       '@slop/tuning':
         specifier: workspace:*
         version: link:../../packages/tuning
@@ -119,6 +122,12 @@ importers:
       '@dimforge/rapier3d-compat':
         specifier: ^0.21.0
         version: 0.21.0
+      three:
+        specifier: ^0.186.1
+        version: 0.186.1
+
+  packages/signage:
+    dependencies:
       three:
         specifier: ^0.186.1
         version: 0.186.1

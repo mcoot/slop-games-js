@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { FixedLoop, FrameStats } from "@slop/core";
 import { ActionInput, MouseLook, attachDomInput } from "@slop/input";
 import { createPhysicsWorld } from "@slop/physics";
-import { disposeLevel, loadLevel, triggersAt, type Level } from "@slop/level-loader";
+import { disposeLevel, lightmapUrl, loadLevel, loadLightmap, triggersAt, type Level } from "@slop/level-loader";
 import {
   FpsCameraRig,
   PlayerController,
@@ -31,8 +31,8 @@ import { StationRound } from "./round/stationRound";
 import { RoundView, Sfx } from "./round/roundView";
 import { destination } from "./round/fares";
 import { formatYen } from "./round/yen";
-import { surfaceColors, type Surface } from "./levels/surfaces";
-import { gridMaterial } from "./gridMaterial";
+import { Atmosphere } from "./atmosphere";
+import { DepartureBoard, buildSigns, timetable } from "./wayfinding";
 import { createHud } from "./hud";
 import "./style.css";
 
@@ -62,37 +62,17 @@ async function main() {
   const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xc9d6e3);
-  scene.fog = new THREE.Fog(0xc9d6e3, 60, 180);
-  scene.add(new THREE.HemisphereLight(0xeef3ff, 0x6b6250, 1.6));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.8);
-  sun.position.set(30, 50, 20);
-  sun.target.position.set(0, 0, -40);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 75, bottom: -75, near: 1, far: 160 });
-  sun.shadow.bias = -0.0005;
-  scene.add(sun, sun.target);
-
   const camera = new THREE.PerspectiveCamera(74, 1, 0.05, 400);
+  const atmosphere = new Atmosphere(renderer, scene, camera);
 
   const world = await createPhysicsWorld();
-  const materials = new Map<Surface, THREE.Material>();
-  /** Greybox materials for `surface` meshes, and text sprites for `label` empties (added under the level root). */
-  const dress = (level: Level) => {
+  /** Materials and lighting (baked if the level has a lightmap), and text sprites for `label` empties. */
+  const dress = (level: Level, lightmap: THREE.Texture | null) => {
+    atmosphere.dress(level, lightmap);
     const labels: THREE.Sprite[] = [];
     level.root.traverse((obj) => {
-      const surface = obj.userData.surface as Surface | undefined;
-      if (obj instanceof THREE.Mesh && surface && surface in surfaceColors) {
-        if (!materials.has(surface)) materials.set(surface, gridMaterial(surfaceColors[surface]));
-        obj.material = materials.get(surface)!;
-        obj.castShadow = surface !== "floor";
-        obj.receiveShadow = true;
-      }
       if (typeof obj.userData.label === "string") {
         labels.push(textSprite(obj.userData.label, obj.getWorldPosition(new THREE.Vector3()).toArray()));
       }
@@ -101,7 +81,7 @@ async function main() {
     scene.add(level.root);
   };
   let level = await loadLevel(world, LEVEL_URL);
-  dress(level);
+  dress(level, await loadLightmap(lightmapUrl(LEVEL_URL)));
   world.step();
 
   // Settings objects are shared by reference with the tuning panel.
@@ -156,6 +136,21 @@ async function main() {
     if (roundView) scene.add(roundView.root);
   };
   setupRound();
+
+  // Wayfinding: signs (arrows from the navmesh) and departure boards (from the round clock).
+  let signs: THREE.Group | null = null;
+  let boards: DepartureBoard[] = [];
+  const setupWayfinding = () => {
+    signs?.removeFromParent();
+    for (const b of boards) b.object.removeFromParent();
+    signs = buildSigns(level, nav);
+    scene.add(signs);
+    boards = (level.markers.get("departure_board") ?? []).map(
+      (m) => new DepartureBoard(m, round ? timetable(round.target, round.settings.departsIn) : []),
+    );
+    for (const b of boards) scene.add(b.object);
+  };
+  setupWayfinding();
   const machinePanel = new ScreenPanel(document.body, "jr-machine");
   let ended = false;
   const endScreen = document.querySelector<HTMLElement>("#end")!;
@@ -265,6 +260,15 @@ async function main() {
     screenDelay: [0, 2, 0.05],
     issueTime: [0, 8, 0.1],
   });
+  tuning.addGroup("Atmosphere", atmosphere.settings, {
+    exposure: [0.2, 3, 0.01],
+    bakedLight: [0, 3, 0.01],
+    fixtureGlow: [0, 10, 0.1],
+    bloom: true,
+    bloomStrength: [0, 2, 0.01],
+    bloomThreshold: [0, 2, 0.01],
+    haze: [0, 0.05, 0.001],
+  });
   tuning.addGroup("Simulation", simulation, { tickRate: [20, 144, 1] });
   tuning.addPersistence();
   tuning.load();
@@ -274,6 +278,7 @@ async function main() {
     Object.assign(chaser.body.settings, movement);
     chaser.body.applySettings();
     loop.tickRate = simulation.tickRate;
+    atmosphere.apply();
     updateNavHelper();
     chaserView.root.visible = chase.enabled;
     if (round) {
@@ -350,12 +355,14 @@ async function main() {
       rig.update(player, alpha, look.yaw, look.pitch, frameDt);
       chaserView.update(chaser, alpha, frameDt, camera, chase.enabled ? chase.footstepVolume : 0);
       roundView?.update(frameDt);
+      if (round) for (const b of boards) b.update(round.clockSeconds);
       if (machinePanel.isOpen) {
         if (!round?.machine) closeMachine(false);
         else machinePanel.render();
       }
       updatePrompt();
-      renderer.render(scene, camera);
+      atmosphere.update(frameDt);
+      atmosphere.render();
       hud.update({
         speed: player.horizontalSpeed,
         speedUnits: player.horizontalSpeed / SOURCE_UNIT,
@@ -398,7 +405,9 @@ async function main() {
       if (url !== LEVEL_URL) return;
       reloading = reloading.then(async () => {
         try {
-          const next = await loadLevel(world, `${url}?t=${Date.now()}`);
+          const stamp = `?t=${Date.now()}`;
+          const next = await loadLevel(world, url + stamp);
+          const nextLightmap = await loadLightmap(lightmapUrl(url) + stamp);
           level.root.traverse((obj) => {
             if (obj instanceof THREE.Sprite) {
               obj.material.map?.dispose();
@@ -407,7 +416,7 @@ async function main() {
           });
           disposeLevel(world, level);
           level = next;
-          dress(level);
+          dress(level, nextLightmap);
           world.step(); // so the next tick's ground checks see the new colliders
           nav.dispose();
           nav = Navigation.build(level.solids, agent());
@@ -416,6 +425,7 @@ async function main() {
           chaser.patrol = patrol();
           updateNavHelper();
           setupRound();
+          setupWayfinding();
           applyTuning();
           console.info(`[levels] reloaded ${url}`);
         } catch (err) {
@@ -468,6 +478,7 @@ async function main() {
     const w = window.innerWidth;
     const h = window.innerHeight;
     renderer.setSize(w, h, false);
+    atmosphere.resize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   };

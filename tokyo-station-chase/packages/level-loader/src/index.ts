@@ -164,3 +164,4 @@ function convexHullDesc(mesh: THREE.Mesh): RAPIER.ColliderDesc | null {
   }
   return RAPIER.ColliderDesc.convexHull(points);
 }
+export * from "./lightmap";
