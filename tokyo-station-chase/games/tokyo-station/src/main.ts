@@ -258,7 +258,7 @@ async function main() {
     jumpRadius: [0, 40, 0.5],
     stride: [0.5, 4, 0.1],
   });
-  const roundTuning = { departsIn: 240, boardingDelay: 3, screenDelay: 0.35, issueTime: 2.2 };
+  const roundTuning = { departsIn: 300, boardingDelay: 3, screenDelay: 0.35, issueTime: 2.2 };
   tuning.addGroup("Round", roundTuning, {
     departsIn: [30, 900, 10],
     boardingDelay: [0, 10, 0.5],

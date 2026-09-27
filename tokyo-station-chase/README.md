@@ -182,7 +182,7 @@ corner away from breaking line of sight:
 
 The previous open-plan station is still there as `?level=station-open`.
 
-- You have 4 minutes (station clock 14:28 → departs 14:32, tunable in "Round"). Yen
+- You have 5 minutes (station clock 14:27 → departs 14:32, tunable in "Round"). Yen
   (¥16,000 in all) lies around both floors; the Kyoto fare is ¥12,650 unreserved, so
   you need most of it. A scripted near-perfect run with no chaser takes about 190 s. Coins
   jingle as you pick them up (the chaser can hear that).

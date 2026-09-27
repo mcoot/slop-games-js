@@ -18,7 +18,7 @@ export interface RoundSettings {
   boardingDelay: number;
 }
 
-export const defaultRound: RoundSettings = { departsIn: 240, boardingDelay: 3 };
+export const defaultRound: RoundSettings = { departsIn: 300, boardingDelay: 3 };
 
 /** The train you have to catch this round. */
 export interface TargetTrain {
@@ -33,7 +33,7 @@ export const HIKARI_507: TargetTrain = {
   name: { ja: "ひかり507号", en: "Hikari 507" },
   destination: "kyoto",
   track: 14,
-  clockStart: 14 * 60 + 28,
+  clockStart: 14 * 60 + 27,
 };
 
 export interface Toast {
