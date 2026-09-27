@@ -4,7 +4,7 @@
   --accent: #e8b44a;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: #111; color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: #111; color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
 #game { display: block; width: 100vw; height: 100vh; }
 #crosshair { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.6); pointer-events: none; }
 #speed { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); text-align: center; white-space: pre; font: 600 15px/1.5 ui-monospace, monospace; text-shadow: 0 1px 2px #000; pointer-events: none; }

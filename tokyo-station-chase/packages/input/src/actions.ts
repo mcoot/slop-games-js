@@ -91,11 +91,20 @@ export function attachDomInput<A extends string>(
   const onMouseDown = (e: MouseEvent) => {
     if (isActive()) input.press(`Mouse${e.button}`);
   };
-  const onMouseUp = (e: MouseEvent) => input.release(`Mouse${e.button}`);
+  const onMouseUp = (e: MouseEvent) => {
+    // Side buttons (3 = back, 4 = forward) navigate the page on release.
+    if (isActive() && (e.button === 3 || e.button === 4)) e.preventDefault();
+    input.release(`Mouse${e.button}`);
+  };
+  const onAuxClick = (e: MouseEvent) => {
+    if (isActive() && (e.button === 3 || e.button === 4)) e.preventDefault();
+  };
   const onWheel = (e: WheelEvent) => {
-    if (!isActive() || e.deltaY === 0) return;
+    if (!isActive()) return;
+    // Always swallow the wheel while playing: a sideways scroll (trackpad, Magic Mouse,
+    // tilt wheel) is otherwise the browser's swipe-to-go-back gesture.
     e.preventDefault();
-    input.pulse(e.deltaY < 0 ? "WheelUp" : "WheelDown");
+    if (e.deltaY !== 0) input.pulse(e.deltaY < 0 ? "WheelUp" : "WheelDown");
   };
   const onBlur = () => input.releaseAll();
 
@@ -103,6 +112,7 @@ export function attachDomInput<A extends string>(
   window.addEventListener("keyup", onKeyUp);
   target.addEventListener("mousedown", onMouseDown);
   window.addEventListener("mouseup", onMouseUp);
+  window.addEventListener("auxclick", onAuxClick);
   target.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("blur", onBlur);
   return () => {
@@ -110,6 +120,7 @@ export function attachDomInput<A extends string>(
     window.removeEventListener("keyup", onKeyUp);
     target.removeEventListener("mousedown", onMouseDown);
     window.removeEventListener("mouseup", onMouseUp);
+    window.removeEventListener("auxclick", onAuxClick);
     target.removeEventListener("wheel", onWheel);
     window.removeEventListener("blur", onBlur);
   };
