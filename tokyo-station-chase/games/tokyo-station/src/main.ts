@@ -53,6 +53,7 @@ const bindings: Record<Action, string[]> = {
 /** Levels exported from assets-src/levels/*.blend by `pnpm export-levels`. Pick with ?level=<name>. */
 const LEVELS: Record<string, string> = {
   station: "levels/tokyo_station.glb",
+  "station-open": "levels/tokyo_station_open.glb",
   sandbox: "levels/movement_sandbox.glb",
 };
 const LEVEL_URL = LEVELS[new URLSearchParams(location.search).get("level") ?? ""] ?? LEVELS.station!;

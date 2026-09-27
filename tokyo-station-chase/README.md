@@ -12,7 +12,7 @@ M4 Tokyo Station slice. **M0–M3 are done.**
 ```sh
 cd tokyo-station-chase
 pnpm install
-pnpm dev        # http://localhost:5173 (?level=sandbox for the movement sandbox)
+pnpm dev        # http://localhost:5173 (?level=station-open or ?level=sandbox for the others)
 pnpm test       # headless movement tests (Rapier runs in Node)
 pnpm typecheck
 pnpm build      # static site in games/tokyo-station/dist
@@ -94,6 +94,8 @@ The player's forward at yaw 0 is Blender **+Y**. 1 Blender unit = 1 m.
 | Empty with custom property `type` | A marker. The loader returns markers grouped by type, each with a position and a facing (the empty's +Y axis) |
 | Marker `type` = `player_spawn` | Where the player's feet start, facing the empty's +Y axis |
 | Marker `type` = `chaser_spawn` | Where the chaser starts |
+| Marker `type` = `patrol_point` | The chaser's calm patrol, walked in name order (`patrol-00`, `patrol-01`, ...) |
+| Mesh `hide-<name>_col_trigger` | A hiding place: while you're in it and keeping still the director gives him no hints |
 | Marker `type` = `chokepoint` | A place a fleeing player will probably pass (in M3: ticket machines, gates, platforms). The chaser lies in wait here when it has lost you |
 | Marker `type` = `money_spawn` | Yen lying around. Custom property `value`: 1, 5, 10, 50, 100, 500, 1000, 5000 or 10000 |
 | Marker `type` = `interact` | Something to use with E. Custom property `action`: `ticket_machine` |
@@ -157,13 +159,32 @@ and how far away he is.
 
 ## The station round (M3)
 
-`tokyo_station.blend`: a greybox Tokyo Station with a concourse (pillars, kiosks, crates,
-a raised walkway loop and a dead-end pocket), three ticket machines, a gate line, a
-platform hall with two flights up to track 14, and the Hikari 507 to Kyoto.
+`tokyo_station.blend`: a greybox Tokyo Station on two floors, laid out as a street grid
+of shop blocks (6 north–south by 4 east–west streets, 4 m wide) so you're always a
+corner away from breaking line of sight:
+
+- **Concourse** (ground floor): you start at the south entrance. A central plaza with
+  the exposed ticket machines (3), loops round the blocks, a dead end with the ¥5,000
+  note, and the two gate lines in the north wall: 丸の内側 Marunouchi (west) and
+  八重洲側 Yaesu (east).
+- **B1, Gransta**: the same street grid with different closures and two more dead ends.
+  The quiet machines (2) are in a passage through a block in the far south-east.
+  The chaser starts here, patrolling.
+- **Stairs**: three stairwells join the floors. At the bottom end of each, the
+  concourse drops 5 m into the stairwell: a one-way escape he has to go round for.
+- **Player-only routes**: counters you can only crawl under (two on the concourse, one
+  in B1), and a low kiosk near the spawn you can hop onto from a crate and cross.
+  A ¥1,000 sits in each. Walkable yen alone (¥12,000) doesn't cover the fare, so
+  you'll need at least one.
+- **Hiding places**: three toilet alcoves (`hide-*` triggers).
+- **Platform**: through either gate line into the paid hall, then either of two flights
+  up to track 14.
+
+The previous open-plan station is still there as `?level=station-open`.
 
 - You have 4 minutes (station clock 14:28 → departs 14:32, tunable in "Round"). Yen
-  (¥16,000 in all) lies around the concourse; the Kyoto fare is ¥12,650 unreserved, so
-  you need most of it, including the ¥5,000 note at the back of the dead end. Coins
+  (¥16,000 in all) lies around both floors; the Kyoto fare is ¥12,650 unreserved, so
+  you need most of it. A scripted near-perfect run with no chaser takes about 190 s. Coins
   jingle as you pick them up (the chaser can hear that).
 - **Ticket machine** (JR Central Tōkaidō style, Japanese and English): destination →
   seat type (unreserved / reserved +¥1,090) → passengers → pay by feeding in coins and
@@ -171,8 +192,8 @@ platform hall with two flights up to track 14, and the Hikari 507 to Kyoto.
   won't take ¥1 or ¥5 coins. Every screen takes a moment and every press beeps; the
   printer is loud. The world keeps running while you're at the machine.
   Fares are plausible, not real.
-- **Gates** open for anyone with a ticket (and for the chaser) and chime and stay shut
-  without one. They can't be jumped.
+- **Gates** open for anyone with a ticket (and silently for the chaser) and chime and
+  stay shut without one. They can't be jumped.
 - **Train**: board with a valid ticket (right destination) and the doors close 3 s later;
   be inside when they shut to win. Without one the conductor stops you. At departure the
   doors shut regardless.

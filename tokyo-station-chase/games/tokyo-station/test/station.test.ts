@@ -20,7 +20,7 @@ beforeAll(async () => {
   nav = Navigation.build(level.solids, AGENT);
 });
 
-async function makeStation(opts: { spawn?: Vec3; chaser?: { at: Vec3; yaw?: number; state?: "idle" | "search" | "chase" } } = {}) {
+async function makeStation(opts: { spawn?: Vec3; chaser?: { at: Vec3; yaw?: number; state?: "idle" | "search" | "chase" | "investigate" } } = {}) {
   const world = await createPhysicsWorld();
   const level = await loadLevel(world, readGlb(STATION_GLB));
   const round = new StationRound(world, level);
@@ -74,11 +74,26 @@ async function makeStation(opts: { spawn?: Vec3; chaser?: { at: Vec3; yaw?: numb
     return hdist(player.feet, to) < 0.5;
   };
 
+  /** Crouch-walk in a straight line (under counters, where the navmesh doesn't go). */
+  const crouchTo = (to: Vec3, maxSeconds = 15) => {
+    for (let t = 0; t < maxSeconds && !round.over; t += DT) {
+      if (hdist(player.feet, to) < 0.4) break;
+      player.tick({ forward: 1, side: 0, jumpPresses: 0, jumpHeld: false, crouch: true, walk: false, yaw: yawTo(player.feet, to) }, DT);
+      round.tick(DT, { x: player.feet.x, y: player.feet.y, z: player.feet.z }, null, bus);
+      bus.drain();
+      world.step();
+      time += DT;
+    }
+    // Stand back up.
+    for (let t = 0; t < 0.5; t += DT) tick();
+    return hdist(player.feet, to) < 0.4;
+  };
+
   const wait = (seconds: number) => {
     for (let t = 0; t < seconds && !round.over; t += DT) tick();
   };
 
-  return { world, level, round, player, bus, chaser, tick, walkTo, wait, time: () => time };
+  return { world, level, round, player, bus, chaser, tick, walkTo, crouchTo, wait, time: () => time };
 }
 
 /** Pay with the biggest pieces first, like someone in a hurry. */
@@ -98,44 +113,79 @@ function payAndTake(s: Awaited<ReturnType<typeof makeStation>>) {
   s.tick(); // the round picks up the ticket
 }
 
+describe("station level", () => {
+  it("has two floors, two machine banks, two gate lines, hiding places and a patrol", async () => {
+    const s = await makeStation();
+    const m = s.level.markers;
+    const machines = m.get("interact")!;
+    expect(new Set(machines.map((x) => (x.position.y < -1 ? "B1" : "concourse")))).toEqual(new Set(["B1", "concourse"]));
+    expect(new Set(m.get("gate")!.map((g) => Math.sign(g.position.x)))).toEqual(new Set([-1, 1]));
+    expect(m.get("patrol_point")!.length).toBeGreaterThanOrEqual(6);
+    expect(s.level.triggers.filter((t) => t.name.startsWith("hide")).length).toBeGreaterThanOrEqual(3);
+    // The chaser spawns out of sight and far (by path) from the player.
+    expect(nav.pathLength(s.level.spawn.position, m.get("chaser_spawn")![0]!.position)).toBeGreaterThan(60);
+  });
+
+  it("puts some yen where only you can go: under counters and on the low kiosk", async () => {
+    const s = await makeStation();
+    const playerOnly = s.round.pickups.items.filter((p) => !Number.isFinite(nav.pathLength(s.level.spawn.position, p.position)) || hdist(nav.path(s.level.spawn.position, p.position).at(-1)!, p.position) > 0.8 || Math.abs(nav.path(s.level.spawn.position, p.position).at(-1)!.y - p.position.y) > 0.6);
+    expect(playerOnly.map((p) => p.value)).toEqual([1000, 1000, 1000, 1000]);
+    // Walking alone doesn't pay the fare: you need those routes.
+    expect(s.round.pickups.total - 4000).toBeLessThan(12650);
+  });
+});
+
 describe("station round", () => {
-  it("can be won: collect yen, buy a ticket, pass the gates, board", async () => {
+  it("can be won: collect yen (including under a counter), buy a ticket, pass the gates, board", async () => {
     const s = await makeStation();
     const fare = 12650;
-    // Collect reachable yen, nearest first, until there's enough for the fare.
+    // The ¥1,000 under the counter east of the spawn: only a crouching player gets it.
+    expect(s.walkTo({ x: 4, y: 0, z: -17 })).toBe(true);
+    expect(s.crouchTo({ x: 12, y: 0, z: -17 })).toBe(true);
+    expect(s.crouchTo({ x: 5, y: 0, z: -17 })).toBe(true);
+    // Then walkable yen, nearest (by path) first, until there's enough for the fare.
     while (s.round.wallet.total < fare) {
-      const left = s.round.pickups.items.filter((p) => !p.taken && nav.closestPoint(p.position) && p.position.y < 3);
+      const left = s.round.pickups.items.filter((p) => !p.taken && Number.isFinite(nav.pathLength(s.player.feet, p.position)));
       expect(left.length, "ran out of reachable yen").toBeGreaterThan(0);
-      left.sort((a, b) => hdist(a.position, s.player.feet) - hdist(b.position, s.player.feet));
+      const lengths = new Map(left.map((p) => [p, nav.pathLength(s.player.feet, p.position)]));
+      left.sort((a, b) => lengths.get(a)! - lengths.get(b)!);
       const target = left[0]!;
       s.walkTo(target.position, 40);
-      target.taken = true; // unreachable ones (on crates) are skipped
+      target.taken = true; // skip it even if the walk fell short
     }
     expect(s.round.wallet.total).toBeGreaterThanOrEqual(fare);
 
-    const machine = s.round.machines[0]!;
-    expect(s.walkTo({ x: machine.position.x + 0.8, y: 0, z: machine.position.z })).toBe(true);
+    // The nearest machine bank by path, then the nearest gate line.
+    const machine = [...s.round.machines].sort(
+      (a, b) => nav.pathLength(s.player.feet, a.position) - nav.pathLength(s.player.feet, b.position),
+    )[0]!;
+    const facing = s.level.markers.get("interact")!.find((m) => m.name === machine.id)!;
+    const front = { x: machine.position.x - Math.sin(facing.yaw) * 0.7, y: machine.position.y - 1.15, z: machine.position.z - Math.cos(facing.yaw) * 0.7 };
+    expect(s.walkTo(front), "to the machine").toBe(true);
     s.round.useMachine(machine.position, s.bus);
     const before = s.round.wallet.total;
     payAndTake(s);
     expect(s.round.validFor(s.round.ticket)).toBe(true);
     expect(s.round.wallet.total, "change comes back").toBe(before - fare);
 
-    expect(s.walkTo({ x: -0.8, y: 0, z: -45 }), "through the gates").toBe(true);
-    expect(s.walkTo({ x: -8, y: 4, z: -69.7 }), "into the train").toBe(true);
+    const gates = s.level.markers.get("gate")!.map((g) => ({ x: g.position.x, y: 0, z: g.position.z - 3 }));
+    gates.sort((a, b) => nav.pathLength(s.player.feet, a) - nav.pathLength(s.player.feet, b));
+    expect(s.walkTo(gates[0]!), "through the gates").toBe(true);
+    expect(s.walkTo({ x: -8, y: 5, z: -66.2 }), "into the train").toBe(true);
     s.wait(5);
     expect(s.round.state).toBe("won");
     expect(s.round.elapsed).toBeLessThan(s.round.settings.departsIn);
   });
 
   it("gates stay shut without a ticket, and open with one", async () => {
-    const s = await makeStation({ spawn: { x: -0.8, y: 0.05, z: -36 } });
-    s.walkTo({ x: -0.8, y: 0, z: -45 }, 4);
-    expect(s.player.feet.z).toBeGreaterThan(-39.8); // pressed against the flap at z = -40
+    // Marunouchi-side gates: passages at x = -44 ± 0.8, flaps at z = -45.
+    const s = await makeStation({ spawn: { x: -44.8, y: 0.05, z: -42 } });
+    s.walkTo({ x: -44.8, y: 0, z: -49 }, 4);
+    expect(s.player.feet.z).toBeGreaterThan(-44.8); // pressed against the flap
     expect(s.round.toasts.some((t) => t.text.includes("check your ticket"))).toBe(true);
 
     s.round.ticket = { destination: "kyoto", seat: "unreserved", passengers: 1, fare: 12650 };
-    expect(s.walkTo({ x: -0.8, y: 0, z: -45 }, 6)).toBe(true);
+    expect(s.walkTo({ x: -44.8, y: 0, z: -49 }, 6)).toBe(true);
   });
 
   it("the train leaves without you at departure, and its doors shut", async () => {
@@ -149,7 +199,7 @@ describe("station round", () => {
   });
 
   it("the conductor won't take you without the right ticket", async () => {
-    const s = await makeStation({ spawn: { x: -8, y: 4.05, z: -69.7 } });
+    const s = await makeStation({ spawn: { x: -8, y: 5.05, z: -66.2 } });
     s.round.settings.departsIn = 4;
     s.round.reset();
     s.round.ticket = { destination: "nagoya", seat: "unreserved", passengers: 1, fare: 10560 };
@@ -159,11 +209,11 @@ describe("station round", () => {
   });
 
   it("the machine's beeps bring the chaser over", async () => {
-    // Chaser 8 m from the machines, facing away (east).
-    const s = await makeStation({ spawn: { x: -38.1, y: 0.05, z: -24 }, chaser: { at: { x: -31, y: 0.05, z: -24 }, yaw: -Math.PI / 2 } });
+    // At the central machines, with the chaser 7.5 m away facing away (east).
+    const s = await makeStation({ spawn: { x: -7, y: 0.05, z: -30.2 }, chaser: { at: { x: 0.5, y: 0.05, z: -30 }, yaw: -Math.PI / 2 } });
     s.wait(0.5);
     expect(s.chaser!.state).toBe("idle");
-    s.round.useMachine(s.round.machines[1]!.position, s.bus);
+    s.round.useMachine(s.round.machines.find((m) => m.id.includes("central-1"))!.position, s.bus);
     s.round.wallet.add(10000, 2);
     payAndTake(s);
     expect(["investigate", "chase", "caught"]).toContain(s.chaser!.state);
@@ -171,9 +221,10 @@ describe("station round", () => {
 
   it("the chaser goes through the gates (they open for him) and up to the platform", async () => {
     const s = await makeStation({
-      spawn: { x: 0, y: 4.05, z: -62 },
-      chaser: { at: { x: 0, y: 0.05, z: -34 }, state: "search" },
+      spawn: { x: 0, y: 5.05, z: -60 },
+      chaser: { at: { x: -44, y: 0.05, z: -38 }, state: "investigate" },
     });
+    s.chaser!.lastKnown = { x: 0, y: 5.05, z: -60 }; // he heard something up there
     s.wait(60);
     expect(s.round.state).toBe("caught");
   });

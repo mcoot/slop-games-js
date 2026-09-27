@@ -70,14 +70,16 @@ export class GateLine {
     for (const g of this.gates) {
       const playerDist = Math.hypot(player.x - g.position.x, player.z - g.position.z);
       const chaserNear = chaser !== null && Math.hypot(chaser.x - g.position.x, chaser.z - g.position.z) < OPEN_RANGE;
-      const allowed = (hasTicket && playerDist < OPEN_RANGE) || chaserNear;
+      const forPlayer = hasTicket && playerDist < OPEN_RANGE;
+      const allowed = forPlayer || chaserNear;
       g.refuseCooldown -= dt;
       if (allowed) {
         g.idle = 0;
         if (!g.open) {
           this.setOpen(g, true);
           events.opened.push(g);
-          bus.emit({ position: { ...g.position }, radius: 8, kind: "gate-beep" });
+          // Only a ticket beeps (he waves a pass), so he doesn't hear himself.
+          if (forPlayer) bus.emit({ position: { ...g.position }, radius: 8, kind: "gate-beep" });
         }
       } else if (g.open) {
         g.idle += dt;
