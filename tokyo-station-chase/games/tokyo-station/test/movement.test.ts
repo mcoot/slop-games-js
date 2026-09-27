@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { accelerate, airAccelerate, applyFriction, horizontalSpeed, tokyoMovement } from "@slop/fps-controller";
+import * as THREE from "three";
+import {
+  accelerate,
+  airAccelerate,
+  applyFriction,
+  FpsCameraRig,
+  horizontalSpeed,
+  tokyoMovement,
+  type Vec3,
+} from "@slop/fps-controller";
 import { DT, makeSandbox } from "./harness";
 
 const S = tokyoMovement;
@@ -189,5 +198,40 @@ describe("player in the sandbox", () => {
     expect(p2.feet.y).toBeLessThan(1.5);
     expect(airborneTicks).toBeLessThanOrEqual(1);
     expect(player.grounded).toBe(true);
+  });
+});
+
+describe("camera on stairs", () => {
+  /** Render at `fps` with the real fixed-tick interpolation and return the camera height each frame. */
+  async function cameraHeights(spawn: Vec3, forward: number, seconds: number, fps: number) {
+    const { player, world, run } = await makeSandbox(spawn);
+    run(0.6, {});
+    const rig = new FpsCameraRig(new THREE.PerspectiveCamera());
+    const heights: number[] = [];
+    let acc = 0;
+    for (let t = 0; t < seconds; t += 1 / fps) {
+      acc += 1 / fps;
+      while (acc >= DT) {
+        player.tick({ forward, side: 0, jumpPresses: 0, jumpHeld: false, crouch: false, walk: false, yaw: 0 }, DT);
+        world.step();
+        rig.afterTick(player);
+        acc -= DT;
+      }
+      rig.update(player, acc / DT, 0, 0, 1 / fps);
+      heights.push(rig.camera.position.y);
+    }
+    return heights;
+  }
+
+  it.each([60, 144])("never moves the view down while walking up stairs (%d fps)", async (fps) => {
+    const ys = await cameraHeights({ x: -20, y: 0.011, z: -6 }, 1, 1, fps);
+    expect(ys.at(-1)! - ys[0]!).toBeGreaterThan(1.5);
+    for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeGreaterThanOrEqual(ys[i - 1]! - 1e-4);
+  });
+
+  it.each([60, 144])("never moves the view up while walking down stairs (%d fps)", async (fps) => {
+    const ys = await cameraHeights({ x: -20, y: 2.1, z: -12 }, -1, 1, fps);
+    expect(ys[0]! - ys.at(-1)!).toBeGreaterThan(1.5);
+    for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeLessThanOrEqual(ys[i - 1]! + 1e-4);
   });
 });
