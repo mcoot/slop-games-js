@@ -44,7 +44,8 @@ export interface WeaponDef {
 }
 
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
-  // Spinfusor: the Tribes disc. Slow, splashy, one per second; a midair direct hit kills.
+  // Spinfusor: the Tribes disc. Slow, splashy, one per second; a midair direct hit does
+  // 770, close to a kill from full health but not quite.
   disc: {
     id: "disc",
     name: "Spinfusor",
@@ -56,7 +57,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     damage: 700,
     splashRadius: 7,
     splashFalloff: 0.25,
-    midairBonus: 1.35,
+    midairBonus: 1.1,
     selfDamage: 0.35,
     impulse: 14,
     burst: 1,

@@ -36,12 +36,12 @@ describe("weapons", () => {
 
 describe("damage", () => {
   const disc = WEAPONS.disc;
-  it("a direct disc hit on someone standing takes most of their health; a midair kills", () => {
+  it("a direct disc hit takes most of someone's health; a midair takes 770, nearly all of it", () => {
     const standing = blastOn(disc, { x: 0, y: 1, z: 0.4 }, target(), true, false)!;
     const midair = blastOn(disc, { x: 0, y: 1, z: 0.4 }, target({ airborne: true }), true, false)!;
     expect(standing.damage).toBe(700);
     expect(midair.midair).toBe(true);
-    expect(midair.damage).toBeGreaterThanOrEqual(900);
+    expect(midair.damage).toBe(770);
   });
 
   it("splash falls off with distance and stops at the blast radius", () => {

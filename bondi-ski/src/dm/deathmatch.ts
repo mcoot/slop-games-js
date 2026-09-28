@@ -16,6 +16,8 @@ import { randomId, type Transport } from "../net/transport";
 import { Explosions, FighterView, ProjectileViews, Viewmodel } from "../view/combat";
 import { defaultBotSettings } from "../combat/bot";
 import { Lobby } from "./lobby";
+import { WorldOverlay, type LabelItem } from "./overlay";
+import { RAPIER } from "@slop/physics";
 
 export interface DeathmatchContext {
   scene: THREE.Scene;
@@ -60,6 +62,9 @@ export class Deathmatch {
   private readonly explosions = new Explosions();
   private readonly viewmodel: Viewmodel;
   private readonly views = new Map<string, FighterView>();
+  private readonly overlay = new WorldOverlay();
+  /** Line of sight to each enemy, rechecked a few times a second. */
+  private readonly sight = new Map<string, { visible: boolean; at: number }>();
   private readonly feed: { text: string; until: number }[] = [];
   private hurtFlash = 0;
   private hitFlash = 0;
@@ -106,6 +111,8 @@ export class Deathmatch {
         } else if (by === this.me.id) {
           // We hit a bot.
           this.hitMarker(health <= 0, hit.midair);
+          const bot = this.arena.bots.find((b) => b.id === victim);
+          if (bot) this.damageNumber(bot.body.feet, hit.damage, health <= 0, hit.midair);
         }
       },
       died: (victim, by, w, hit) => {
@@ -221,16 +228,28 @@ export class Deathmatch {
     this.explosions.update(dt);
     this.viewmodel.update(dt, this.fighter.alive, this.ctx.player.horizontalSpeed);
     // Bots and remote players.
+    const labels: LabelItem[] = [];
+    const head = this.ctx.movement.standHeight + 0.35;
     for (const bot of this.arena.bots) {
       const v = this.viewFor(bot.id, bot.name, bot.colour);
       const f = bot.body.feet;
-      v.update({ x: f.x, y: f.y, z: f.z, yaw: bot.yaw, pitch: bot.pitch }, bot.fighter.alive, bot.fighter.health / bot.fighter.settings.maxHealth, cam);
+      v.update({ x: f.x, y: f.y, z: f.z, yaw: bot.yaw, pitch: bot.pitch }, bot.fighter.alive);
+      if (bot.fighter.alive) {
+        const pos = new THREE.Vector3(f.x, f.y + head, f.z);
+        labels.push({ id: bot.id, name: bot.name, colour: bot.colour, pos, health: bot.fighter.health, maxHealth: bot.fighter.settings.maxHealth, visible: this.canSee(bot.id, pos) });
+      }
     }
     for (const peer of this.session?.peers.values() ?? []) {
       const v = this.viewFor(peer.id, peer.name, peer.colour);
       const s = this.session!.sample(peer);
-      if (s) v.update(s, peer.alive, peer.hp / this.fighter.settings.maxHealth, cam);
+      if (!s) continue;
+      v.update(s, peer.alive);
+      if (peer.alive) {
+        const pos = new THREE.Vector3(s.x, s.y + head, s.z);
+        labels.push({ id: peer.id, name: peer.name, colour: peer.colour, pos, health: peer.hp, maxHealth: this.fighter.settings.maxHealth, visible: this.canSee(peer.id, pos) });
+      }
     }
+    this.overlay.update(cam, window.innerWidth, window.innerHeight, labels, dt);
     const forward = new THREE.Vector3();
     cam.getWorldDirection(forward);
     this.ctx.audio.listen(cam.position, forward);
@@ -264,7 +283,11 @@ export class Deathmatch {
         this.ctx.audio.shot(w.id, { x: m.x, y: m.y, z: m.z });
       },
       hurt: (victim, m) => {
-        if (m.by === this.session?.selfId && victim !== m.by) this.hitMarker(m.hp <= 0, m.midair);
+        if (m.by !== this.session?.selfId || victim === m.by) return;
+        this.hitMarker(m.hp <= 0, m.midair);
+        const peer = this.session.peers.get(victim);
+        const at = peer && this.session.sample(peer);
+        if (at) this.damageNumber(at, m.dmg, m.hp <= 0, m.midair);
       },
       died: (victim, by, w) => {
         const weapon = this.weaponSettings[w as WeaponId] ?? { name: "the edge of the arena", id: "edge" };
@@ -380,6 +403,28 @@ export class Deathmatch {
   private dropViews(): void {
     for (const v of this.views.values()) v.dispose();
     this.views.clear();
+    this.overlay.clear();
+  }
+
+  private damageNumber(feet: { x: number; y: number; z: number }, amount: number, kill: boolean, midair: boolean): void {
+    const pos = new THREE.Vector3(feet.x, feet.y + this.ctx.movement.standHeight * 0.75, feet.z);
+    this.overlay.damage(pos, amount, kill ? "kill" : midair ? "midair" : "hit");
+  }
+
+  /** Is this enemy's head in view from the camera (not behind terrain or a building)? Cached briefly. */
+  private canSee(id: string, head: THREE.Vector3): boolean {
+    const now = performance.now();
+    const c = this.sight.get(id);
+    if (c && now - c.at < 150) return c.visible;
+    const from = this.ctx.camera.position;
+    const d = new THREE.Vector3().subVectors(head, from);
+    const len = d.length();
+    d.divideScalar(len || 1);
+    const hulls = this.arena.hulls();
+    const hit = this.ctx.world.castRay(new RAPIER.Ray(from, d), len, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, undefined, (col) => !hulls.has(col.handle));
+    const visible = hit === null;
+    this.sight.set(id, { visible, at: now });
+    return visible;
   }
 
   private hitMarker(kill: boolean, midair: boolean): void {

@@ -16,13 +16,16 @@ Ascend (every number is in the Tuning panel):
 | --- | --- | --- |
 | Projectile | Disc, 62 m/s, keeps 50% of your velocity | Round, 230 m/s, keeps 30% |
 | Damage | 700 on a direct hit or the centre of the blast, down to 25% at 7 m | 80 a round, no splash |
-| Midair | ×1.35 on a direct hit against someone in the air: kills from full health | none |
+| Midair | ×1.1 on a direct hit against someone in the air: 770, nearly a kill from full health | none |
 | Rate | one disc every 1.1 s | three-round bursts (0.075 s apart), 0.3 s between bursts; 24-round magazine, 1.7 s reload |
 | Self | 35% of the damage, full knockback: disc jumps | none |
 
 900 health, back 60 hp/s after 8 s without damage; 3 s to respawn, at a spawn point
 along the course away from everyone. First to 15 kills wins; the scores show for 10 s,
 then a new match starts. Leaving the arena (420 m from the middle) hurts; the sea kills.
+
+Enemies you can see have their name and a health bar over them, and your hits float
+up as damage numbers (yellow for a midair, red for the kill).
 
 On your own you play practice bots (3 by default; Tuning → Match). They're simple:
 they head for the nearest enemy, ski and jet on the way, strafe and hop up close, and

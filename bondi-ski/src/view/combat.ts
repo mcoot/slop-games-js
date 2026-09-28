@@ -91,12 +91,10 @@ export class Explosions {
   }
 }
 
-/** Another fighter: body in their colour, a launcher, a name tag and a health bar. */
+/** Another fighter: body in their colour and a launcher. (Their name and health are drawn as an overlay.) */
 export class FighterView {
   readonly root = new THREE.Group();
   private readonly gun: THREE.Group;
-  private readonly bar: THREE.Mesh;
-  private readonly label: THREE.Sprite;
 
   constructor(
     readonly name: string,
@@ -116,48 +114,19 @@ export class FighterView {
     barrel.position.z = -0.45;
     this.gun.add(barrel);
     this.gun.position.set(0.3, height * 0.72, -0.1);
-    this.bar = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.08), new THREE.MeshBasicMaterial({ color: "#3ddc84", depthTest: false }));
-    this.bar.position.y = height + 0.35;
-    this.label = nameTag(name, colour);
-    this.label.position.y = height + 0.62;
-    this.root.add(body, visor, pack, this.gun, this.bar, this.label);
+    this.root.add(body, visor, pack, this.gun);
   }
 
-  update(p: { x: number; y: number; z: number; yaw: number; pitch: number }, alive: boolean, healthFraction: number, camera: THREE.Camera): void {
+  update(p: { x: number; y: number; z: number; yaw: number; pitch: number }, alive: boolean): void {
     this.root.visible = alive;
     this.root.position.set(p.x, p.y, p.z);
     this.root.rotation.y = p.yaw;
     this.gun.rotation.x = p.pitch;
-    this.bar.scale.x = Math.max(healthFraction, 0.001);
-    (this.bar.material as THREE.MeshBasicMaterial).color.set(healthFraction > 0.5 ? "#3ddc84" : healthFraction > 0.25 ? "#ffcf3d" : "#ff6b5e");
-    this.bar.quaternion.copy(camera.quaternion).premultiply(this.root.quaternion.clone().invert());
   }
 
   dispose(): void {
     this.root.removeFromParent();
-    this.label.material.map?.dispose();
   }
-}
-
-function nameTag(name: string, colour: string): THREE.Sprite {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d")!;
-  const font = "700 44px system-ui, sans-serif";
-  ctx.font = font;
-  canvas.width = Math.ceil(ctx.measureText(name).width) + 40;
-  canvas.height = 64;
-  ctx.font = font;
-  ctx.fillStyle = "rgba(10, 24, 36, 0.7)";
-  ctx.roundRect(0, 0, canvas.width, canvas.height, 16);
-  ctx.fill();
-  ctx.fillStyle = colour;
-  ctx.textBaseline = "middle";
-  ctx.fillText(name, 20, canvas.height / 2 + 2);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, sizeAttenuation: false }));
-  s.scale.set((canvas.width / canvas.height) * 0.04, 0.04, 1);
-  return s;
 }
 
 /**

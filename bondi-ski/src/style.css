@@ -105,3 +105,12 @@ body[data-mode="race"] .dm-only, body:not([data-mode="race"]) .race-only { displ
 #dead small { display: block; font-size: 15px; opacity: .85; }
 body:not([data-mode="race"]) #energy { left: 16px; bottom: 48px; transform: none; width: 240px; }
 body:not([data-mode="race"]) #speed { bottom: 16px; }
+#labels { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
+#labels > div { position: absolute; left: 0; top: 0; will-change: transform; }
+#labels .enemy { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+#labels .enemy .name { font: 700 13px/1 system-ui, sans-serif; text-shadow: 0 1px 3px #000, 0 0 2px #000; white-space: nowrap; }
+#labels .enemy .bar { width: 64px; height: 6px; border-radius: 3px; background: rgba(0,0,0,.55); box-shadow: 0 0 0 1px rgba(0,0,0,.4); overflow: hidden; }
+#labels .enemy .fill { height: 100%; }
+#labels .dmg { font: 900 22px/1 system-ui, sans-serif; color: #fff; text-shadow: 0 2px 4px #000, 0 0 2px #000; white-space: nowrap; }
+#labels .dmg.midair { color: #ffd84a; font-size: 26px; }
+#labels .dmg.kill { color: #ff5a4a; font-size: 30px; }
