@@ -15,12 +15,15 @@
     <div id="energy"><div class="fill"></div></div>
     <div id="perf" hidden></div>
     <div id="toast"></div>
+    <div id="standings" hidden></div>
+    <div id="countdown" hidden></div>
     <div id="resume" hidden>Click to resume</div>
     <div id="end" hidden>
       <div class="card">
         <h1>Tamarama!</h1>
         <p class="time"></p>
         <table class="splits"></table>
+        <table class="field"></table>
         <span class="play">R to go again</span>
       </div>
     </div>
@@ -32,13 +35,24 @@
           and every crest is a launch. Jet up the climbs, keep your energy for when it counts, and hit every
           gate to Tamarama Beach. Mind the edge: the sea sends you back a gate.</p>
         <span class="play">Click to play</span>
+        <div id="mp">
+          <h2>Race friends</h2>
+          <label>Your name <input name="name" maxlength="24" autocomplete="nickname" /></label>
+          <div class="out"><button class="create">Create a race room</button></div>
+          <div class="in" hidden>
+            <p class="status"></p>
+            <button class="copy">Copy invite link</button>
+            <button class="leave">Leave room</button>
+          </div>
+        </div>
         <dl>
           <dt>WASD</dt><dd>Run; while skiing or flying, steer</dd>
           <dt>Mouse</dt><dd>Look</dd>
           <dt>Space</dt><dd>Tap to jump, hold to ski</dd>
           <dt>Right mouse / Shift</dt><dd>Jetpack (uses energy, recharges when off)</dd>
           <dt>C / Ctrl</dt><dd>Crouch</dd>
-          <dt>R</dt><dd>Restart the run</dd>
+          <dt>R</dt><dd>Restart the run (in a race: leave it)</dd>
+          <dt>Enter</dt><dd>In a race room: start a race for everyone</dd>
           <dt>F</dt><dd>Back to the last gate</dd>
           <dt>G</dt><dd>Show or hide your best run's ghost</dd>
           <dt>Esc</dt><dd>Release mouse · tuning panel top-right</dd>

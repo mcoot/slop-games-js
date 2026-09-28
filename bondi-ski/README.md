@@ -68,12 +68,22 @@ Bondi also sets `PlayerController.contactNormal` so contacts with the terrain us
 smooth normal: the heightfield's triangle edges otherwise report normals that bleed
 speed at skiing pace.
 
-### Multiplayer (later)
+### Multiplayer
 
-Not built yet; the pieces are shaped for it. A peer-to-peer race would send each
-player's position, yaw and race events a few times a second over WebRTC data channels
-(the site is static, so signalling would go through a public broker such as a
-Nostr/BitTorrent tracker via a library like Trystero, or a tiny signalling worker).
-Remote players are drawn with the same `RacerView` as the ghost, and each client runs
-a `RaceTracker` per racer from their snapshots. Movement stays client-side
-(no server authority), which is fine for friendly races.
+Peer to peer, with no server of our own. On the title card, "Create a race room" puts a
+room code in the page's link (`?room=...`); anyone who opens the link joins. Press Enter
+in game and everyone in the room lines up at the start, counts down together and races;
+other skiers are drawn with name tags, live standings sit top right, and the finish card
+shows everyone's results. R leaves the race. Race times don't count towards your solo
+best or ghost.
+
+| File | What it does |
+| --- | --- |
+| `src/net/protocol.ts` | The messages: hello (name, colour), positions (20 a second), countdown, gates, finish, ping |
+| `src/net/session.ts` | `RaceSession`: who's here, the shared countdown (allowing for message delay), interpolating other racers 120 ms behind, standings |
+| `src/net/transport.ts`, `src/net/trystero.ts`, `src/net/connect.ts` | Connections. Over the internet: WebRTC data channels, with the handshake through public Nostr relays via [Trystero](https://github.com/dmotz/trystero) (MIT). `?net=local` connects only tabs in this browser, for testing offline |
+| `src/net/multiplayer.ts` | The game side: lobby controls, racer figures, countdown and standings |
+
+Movement stays client-side (no authority), which is fine for friendly races. A tab in the
+background pauses the game, so its skier freezes (and misses "go") until you come back.
+Some strict networks block WebRTC between peers; a TURN relay would fix that if it comes up.

@@ -19,7 +19,8 @@
     "@slop/input": "workspace:*",
     "@slop/physics": "workspace:*",
     "@slop/tuning": "workspace:*",
-    "three": "^0.186.1"
+    "three": "^0.186.1",
+    "trystero": "^0.25.4"
   },
   "devDependencies": {
     "pngjs": "^7.0.0"

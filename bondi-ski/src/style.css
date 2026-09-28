@@ -49,3 +49,23 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 #end .splits .behind { color: var(--behind); }
 #resume { position: fixed; left: 50%; top: calc(50% + 28px); transform: translateX(-50%); padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #1a1406; font: 700 14px/1.5 system-ui, sans-serif; cursor: pointer; }
 #resume[hidden] { display: none; }
+#mp { margin: 0 0 16px; padding: 12px 14px; border-radius: 10px; background: rgba(255,255,255,.07); cursor: default; }
+#mp h2 { margin: 0 0 8px; font-size: 15px; }
+#mp label { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 13px; }
+#mp input { flex: 1; padding: 5px 8px; border: 0; border-radius: 6px; background: rgba(255,255,255,.9); color: #102030; font: inherit; }
+#mp button { padding: 6px 12px; border: 0; border-radius: 6px; background: #6fd3ff; color: #0b2233; font: 700 13px/1.4 system-ui, sans-serif; cursor: pointer; }
+#mp button.leave { background: rgba(255,255,255,.15); color: var(--ink); }
+#mp .status { margin: 0 0 8px; font-size: 13px; }
+#mp [hidden] { display: none; }
+#standings { position: fixed; right: 16px; top: 44px; min-width: 200px; max-width: 320px; padding: 8px 12px; border-radius: 8px; background: var(--panel); font: 600 13px/1.6 system-ui, sans-serif; pointer-events: none; }
+#standings[hidden] { display: none; }
+#standings .room { opacity: .75; font-size: 12px; margin-bottom: 2px; }
+#standings .row { display: grid; grid-template-columns: 1.4em 1fr auto; gap: 8px; }
+#standings .row.self { background: rgba(255,255,255,.08); border-radius: 4px; }
+#standings .status { font-family: ui-monospace, monospace; opacity: .85; }
+#standings .hint { font-size: 12px; opacity: .8; word-break: break-all; }
+#countdown { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%); font: 900 120px/1 system-ui, sans-serif; text-shadow: 0 4px 20px rgba(0,0,0,.5); pointer-events: none; }
+#countdown[hidden] { display: none; }
+#end .field { width: 100%; margin: 0 0 16px; border-collapse: collapse; font: 13px/1.6 ui-monospace, monospace; }
+#end .field:empty { display: none; }
+#end .field .self { background: rgba(255,255,255,.1); }

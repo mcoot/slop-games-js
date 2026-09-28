@@ -47,6 +47,14 @@ export class RaceTracker {
     this.events.length = 0;
   }
 
+  /** Mass start: the clock starts now, as if the start gate had just been crossed. */
+  startNow(): void {
+    this.reset();
+    this.state = "running";
+    this.splits = [0];
+    this.next = 1;
+  }
+
   /** The last gate passed (for respawning), or 0 before the start. */
   get lastGate(): number {
     return Math.max(this.next - 1, 0);

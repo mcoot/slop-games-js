@@ -24,9 +24,10 @@ import { createSky } from "./view/sky";
 import { createWater } from "./view/water";
 import { RacerView } from "./view/racer";
 import { CoastAudio } from "./audio";
+import { Multiplayer } from "./net/multiplayer";
 import "./style.css";
 
-type Action = "forward" | "back" | "left" | "right" | "jump" | "jet" | "crouch" | "restart" | "checkpoint" | "ghost";
+type Action = "forward" | "back" | "left" | "right" | "jump" | "jet" | "crouch" | "restart" | "checkpoint" | "ghost" | "start";
 
 const bindings: Record<Action, string[]> = {
   forward: ["KeyW", "ArrowUp"],
@@ -40,6 +41,7 @@ const bindings: Record<Action, string[]> = {
   restart: ["KeyR"],
   checkpoint: ["KeyF"],
   ghost: ["KeyG"],
+  start: ["Enter", "NumpadEnter"],
 };
 
 const COURSE = "icebergs-tamarama";
@@ -159,6 +161,39 @@ async function main() {
       return `<tr><td>${g.name}</td><td>${formatTime(t)}</td>${d}</tr>`;
     });
     endEl.querySelector(".splits")!.innerHTML = rows.join("");
+    endEl.querySelector(".field")!.innerHTML = mp.resultsHtml(me());
+    endEl.hidden = false;
+  };
+  const me = () => ({ x: player.feet.x, y: player.feet.y, z: player.feet.z, yaw: look.yaw, time: race.time, next: race.next });
+
+  // ------------------------------------------------------------ multiplayer
+  let lineUp: ReturnType<typeof route.respawn> | null = null;
+  const mp = new Multiplayer(scene, movement.standHeight, (x, z) => route.samples[route.nearestSample(x, z)]!.s, {
+    countdown(slot) {
+      // Everyone to the start line, side by side, held until "go".
+      restartSolo();
+      const at = route.respawn(0);
+      const s0 = route.samples[0]!;
+      const side = (slot % 2 === 0 ? 1 : -1) * Math.ceil(slot / 2) * 1.6;
+      at.position.x += s0.rx * side;
+      at.position.z += s0.rz * side;
+      lineUp = at;
+      place(at);
+      toast("Race starting", 1.5);
+    },
+    go() {
+      lineUp = null;
+      race.startNow();
+      recorder.reset();
+      updateGates();
+      toast("Go!", 1);
+    },
+  });
+
+  const showRaceEnd = (time: number) => {
+    endEl.querySelector(".time")!.innerHTML = `${formatTime(time)}<small>Race finished</small>`;
+    endEl.querySelector(".splits")!.innerHTML = "";
+    endEl.querySelector(".field")!.innerHTML = mp.resultsHtml(me());
     endEl.hidden = false;
   };
 
@@ -172,6 +207,7 @@ async function main() {
     look.pitch = 0;
   };
   const restart = () => {
+    if (mp.racing) mp.session?.quitRace();
     race.reset();
     recorder.reset();
     ghost.clearTrail();
@@ -182,6 +218,18 @@ async function main() {
     showDelta(null);
     updateGates();
   };
+  /** Back to the start for a solo run, without leaving a multiplayer race. */
+  function restartSolo() {
+    race.reset();
+    recorder.reset();
+    ghost.clearTrail();
+    jet.reset();
+    endEl.hidden = true;
+    place(route.respawn(0));
+    topSpeed = 0;
+    showDelta(null);
+    updateGates();
+  }
   const backToGate = (why: string) => {
     if (race.state === "finished") return;
     if (race.state === "ready") {
@@ -238,6 +286,7 @@ async function main() {
   let topSpeed = 0;
   let skiing = false;
   let elapsed = 0;
+  let lastField = 0;
   const loop = new FixedLoop({
     tickRate: simulation.tickRate,
     tick(dt) {
@@ -246,6 +295,9 @@ async function main() {
       if (input.consumePresses("ghost") > 0) {
         debug.ghost = !debug.ghost;
         updateBest();
+      }
+      if (input.consumePresses("start") > 0 && mp.session && mp.session.phase !== "countdown" && mp.session.phase !== "racing") {
+        mp.session.startRace();
       }
       const axis = (a: Action, b: Action) => (input.isDown(a) ? 1 : 0) - (input.isDown(b) ? 1 : 0);
       const from = { x: player.feet.x, y: player.feet.y, z: player.feet.z };
@@ -268,6 +320,12 @@ async function main() {
       const wx = forward.x * cmd.forward + right.x * cmd.side;
       const wz = forward.z * cmd.forward + right.z * cmd.side;
       const wl = Math.hypot(wx, wz) || 1;
+      if (lineUp && mp.frozen) {
+        // On the line: look around, but no moving until "go".
+        place({ ...lineUp, yaw: look.yaw });
+        cmd.forward = cmd.side = cmd.jumpPresses = 0;
+        cmd.jet = false;
+      }
       jet.tick(player, cmd.jet, { x: wx / wl, y: 0, z: wz / wl }, dt);
       player.tick(cmd, dt);
       skiing = !!cmd.ski && player.grounded;
@@ -280,18 +338,21 @@ async function main() {
           toast("Go!", 1);
         } else {
           audio.gate(e.kind === "finish");
-          const ref = best?.splits[e.gate];
+          if (mp.racing) mp.session?.gate(e.gate, e.time, e.kind === "finish");
+          const ref = mp.racing ? undefined : best?.splits[e.gate];
           showDelta(ref === undefined ? null : e.time - ref);
           if (e.kind === "finish") {
             recorder.record(e.time, player.feet.x, player.feet.y, player.feet.z, look.yaw, true);
-            const previous = best;
-            const pb = !previous || e.time < previous.time;
+            // Mass starts aren't comparable with solo runs through the start gate.
+            const previous = mp.racing ? null : best;
+            const pb = !mp.racing && (!previous || e.time < previous.time);
             if (pb) {
               best = { time: e.time, splits: [...race.splits], ghost: recorder.finish() };
               saveBest(bestKey, best);
             }
             audio.finish(pb);
-            showEnd(e.time, pb, previous);
+            if (mp.racing) showRaceEnd(e.time);
+            else showEnd(e.time, pb, previous);
             updateBest();
           } else {
             toast(route.gates[e.gate]!.name, 1.5);
@@ -299,6 +360,7 @@ async function main() {
         }
         updateGates();
       }
+      mp.tick(me());
       if (race.state === "running") recorder.record(race.time, player.feet.x, player.feet.y, player.feet.z, look.yaw);
       if (inSea(course.terrain, player.feet)) {
         audio.splash();
@@ -318,7 +380,12 @@ async function main() {
       sun.target.position.set(p.x, p.y - 10, p.z);
       sun.position.copy(sun.target.position).addScaledVector(sunDir, 300);
 
-      ghost.visible = debug.ghost && best !== null && race.state !== "finished";
+      mp.render(me());
+      if (!endEl.hidden && mp.racing && performance.now() - lastField > 500) {
+        lastField = performance.now();
+        endEl.querySelector(".field")!.innerHTML = mp.resultsHtml(me());
+      }
+      ghost.visible = debug.ghost && best !== null && race.state !== "finished" && !mp.racing;
       if (ghost.visible && best) {
         const f = best.ghost.sample(race.state === "running" ? race.time : 0);
         if (f) ghost.update(f.x, f.y, f.z, f.yaw);
@@ -369,7 +436,7 @@ async function main() {
 
   // Handy in the console while tuning. `autopilot` takes over the controls (tests use it).
   const debugHooks: { autopilot: ((p: PlayerController) => Partial<MoveCommand> & { jet?: boolean }) | null } = { autopilot: null };
-  Object.assign(window, { bondi: { course, route, player, jet, race, world, look, camera, place, restart, hooks: debugHooks } });
+  Object.assign(window, { bondi: { course, route, player, jet, race, world, look, camera, place, restart, mp, hooks: debugHooks } });
 
   applyTuning();
   updateBest();
