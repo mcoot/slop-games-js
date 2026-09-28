@@ -3,6 +3,7 @@ import {
   accelerate,
   airAccelerate,
   applyFriction,
+  clipVelocity,
   clipVelocityToPlanes,
   horizontalSpeed,
   yawBasis,
@@ -20,6 +21,11 @@ export interface MoveCommand {
   jumpHeld: boolean;
   crouch: boolean;
   walk: boolean;
+  /**
+   * Ski (Tribes): on the ground, no friction and no running; gravity pulls you along the
+   * slope, you steer as if in the air, and you fly off crests. Optional; off if unset.
+   */
+  ski?: boolean;
   /** View yaw in radians, same convention as MouseLook. */
   yaw: number;
 }
@@ -175,7 +181,8 @@ export class PlayerController {
           this.velocity.z *= cap / hs;
         }
       }
-      this.velocity.y = s.jumpSpeed;
+      // Skiing, a jump adds to what the slope gives you rather than replacing it.
+      this.velocity.y = cmd.ski ? Math.max(this.velocity.y, 0) + s.jumpSpeed : s.jumpSpeed;
       this.grounded = false;
       ev.jumped = true;
       // Crouch and jump pressed together: Source is still mid-duck when you leave the
@@ -190,7 +197,9 @@ export class PlayerController {
       this.groundDuckAge = Infinity;
     }
 
-    if (this.grounded) {
+    if (this.grounded && cmd.ski) {
+      this.skiAccelerate(wishDir, wishSpeed, dt);
+    } else if (this.grounded) {
       this.velocity.y = 0;
       applyFriction(this.velocity, s.friction, s.stopSpeed, dt);
       accelerate(this.velocity, wishDir, wishSpeed, s.accelerate, dt);
@@ -207,11 +216,35 @@ export class PlayerController {
     if (!this.grounded) this.velocity.y -= s.gravity * dt * 0.5;
 
     this.categorizePosition();
-    if (wasGrounded && !this.grounded && !ev.jumped) this.stayOnGround();
+    // Skiing over a crest you take off; walking, you follow the ground down.
+    if (wasGrounded && !this.grounded && !ev.jumped && !cmd.ski) this.stayOnGround();
     if (!wasGrounded && this.grounded) {
       ev.landedSpeed = Math.max(fallSpeed, 0);
-      this.velocity.y = 0;
+      // Skiing, landing on a downslope keeps the speed along it (that's the trick).
+      if (cmd.ski) clipVelocity(this.velocity, this.groundNormal);
+      else this.velocity.y = 0;
+    } else if (this.grounded && cmd.ski) {
+      clipVelocity(this.velocity, this.groundNormal);
     }
+  }
+
+  /** Grounded and skiing: keep velocity along the ground, add gravity down the slope, steer. */
+  private skiAccelerate(wishDir: Vec3, wishSpeed: number, dt: number): void {
+    const s = this.settings;
+    const n = this.groundNormal;
+    const v = this.velocity;
+    clipVelocity(v, n);
+    // Gravity's component along the slope: g - (g·n)n with g = (0, -gravity, 0).
+    const g = s.gravity * dt;
+    v.x += g * n.y * n.x;
+    v.y += g * n.y * n.y - g;
+    v.z += g * n.y * n.z;
+    const drag = Math.max(1 - (s.skiFriction ?? 0) * dt, 0);
+    v.x *= drag;
+    v.y *= drag;
+    v.z *= drag;
+    airAccelerate(v, wishDir, wishSpeed, s.airAccelerate, s.airSpeedCap, dt);
+    clipVelocity(v, n);
   }
 
   private move(dt: number): void {

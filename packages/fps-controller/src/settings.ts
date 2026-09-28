@@ -42,6 +42,8 @@ export interface MovementSettings {
   crouchEyeHeight: number;
   /** Seconds for the view to lower when crouching on the ground. */
   duckTime: number;
+  /** Fraction of speed lost per second while skiing (`MoveCommand.ski`). 0 or unset: none. */
+  skiFriction?: number;
 }
 
 export const tokyoMovement: MovementSettings = {
