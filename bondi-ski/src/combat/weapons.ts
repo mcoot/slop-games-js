@@ -33,6 +33,8 @@ export interface WeaponDef {
   selfDamage: number;
   /** Knockback at the centre of the blast (m/s), fading to 0 at the edge. Disc jumps. */
   impulse: number;
+  /** Multiplier on the knockback from your own blast, so disc jumps can build speed. */
+  selfImpulse: number;
   /** Shots per trigger pull, and the gap between them (s). */
   burst: number;
   burstInterval: number;
@@ -63,6 +65,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     midairBonus: 1.1,
     selfDamage: 0.35,
     impulse: 14,
+    selfImpulse: 1.5,
     burst: 1,
     burstInterval: 0,
     cooldown: 1.1,
@@ -86,6 +89,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     midairBonus: 1,
     selfDamage: 0,
     impulse: 0.4,
+    selfImpulse: 1,
     burst: 3,
     burstInterval: 0.075,
     cooldown: 0.3,

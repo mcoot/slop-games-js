@@ -1,7 +1,7 @@
 import type { RAPIER, PhysicsWorld } from "@slop/physics";
 import { yawBasis, type MovementSettings, type PlayerController } from "@slop/fps-controller";
-import { heightAt, inSea, surfaceAt, Surface, type CourseData } from "../course/data";
-import type { Route } from "../course/route";
+import { inSea, type CourseData } from "../course/data";
+import type { ArenaLayout } from "../maps";
 import type { Jetpack } from "../jetpack";
 import { Bot, type Enemy } from "./bot";
 import { blastOn, type Hit, type Target, type V3 } from "./damage";
@@ -28,9 +28,6 @@ export interface ArenaEvents {
   respawned(id: string): void;
 }
 
-/** How far from the middle of the course you can go before the arena pushes back (m). */
-export const ARENA_RADIUS = 420;
-
 /**
  * The fight, without any drawing: projectiles for everyone, damage and deaths for the
  * fighters this machine runs (you, and bots in solo practice), respawns and the score.
@@ -42,6 +39,8 @@ export class Arena {
   readonly match = new Match();
   readonly spawns: V3[];
   readonly centre: V3;
+  /** Past this distance from the centre (m) you take damage until you come back. */
+  readonly radius: number;
   /** Remote fighters as targets (drawn positions), set by the network layer each tick. */
   remoteTargets: Target[] = [];
   private seq = 0;
@@ -50,16 +49,17 @@ export class Arena {
   constructor(
     private readonly world: PhysicsWorld,
     private readonly course: CourseData,
-    route: Route,
+    layout: ArenaLayout,
     private readonly movement: MovementSettings,
     readonly me: Local,
     private readonly events: ArenaEvents,
     private readonly random: () => number = Math.random,
   ) {
     this.projectiles = new Projectiles(world, (c: RAPIER.Collider) => this.hulls().has(c.handle));
-    this.spawns = spawnPoints(course, route);
-    const mid = route.samples[Math.floor(route.samples.length / 2)]!;
-    this.centre = { x: mid.x, y: mid.y, z: mid.z };
+    this.spawns = layout.spawns;
+    this.centre = { ...layout.centre };
+    // A walled arena's edge is the wall; only leaking past it (over the top) hurts.
+    this.radius = layout.walled ? layout.radius + 3 : layout.radius;
   }
 
   /** Everyone this machine runs. */
@@ -139,7 +139,7 @@ export class Arena {
     for (const l of locals) {
       // Out past the arena edge: hurt until you come back.
       const d = Math.hypot(l.body.feet.x - this.centre.x, l.body.feet.z - this.centre.z);
-      if (l.fighter.alive && d > ARENA_RADIUS) {
+      if (l.fighter.alive && d > this.radius) {
         this.damage(l, l.id, OUT_OF_BOUNDS, { damage: Math.ceil(150 * dt), impulse: { x: 0, y: 0, z: 0 }, direct: false, midair: false });
       }
       // The sea: straight to the bottom.
@@ -206,6 +206,7 @@ export const OUT_OF_BOUNDS: WeaponDef = {
   midairBonus: 1,
   selfDamage: 1,
   impulse: 0,
+  selfImpulse: 1,
   burst: 1,
   burstInterval: 0,
   cooldown: 0,
@@ -219,24 +220,6 @@ export const THE_SEA: WeaponDef = { ...OUT_OF_BOUNDS, name: "the Pacific" };
 export function targetOf(l: Local): Target {
   const f = l.body.feet;
   return { id: l.id, feet: { x: f.x, y: f.y, z: f.z }, height: l.body.hullHeight(), radius: 0.45, airborne: !l.body.grounded };
-}
-
-/** Where to (re)spawn: on land along the course, a little either side of the walk. */
-export function spawnPoints(course: CourseData, route: Route): V3[] {
-  const out: V3[] = [];
-  const t = course.terrain;
-  for (let i = 5; i < route.samples.length - 5; i += 12) {
-    const s = route.samples[i]!;
-    for (const off of [0, -14, 14]) {
-      const x = s.x + s.rx * off;
-      const z = s.z + s.rz * off;
-      const y = heightAt(t, x, z);
-      if (y < 1.5 || surfaceAt(t, x, z) === Surface.sea) continue;
-      out.push({ x, y: y + 0.4, z });
-      break;
-    }
-  }
-  return out;
 }
 
 /** Aim direction from yaw and pitch (controller conventions). */

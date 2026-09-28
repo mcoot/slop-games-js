@@ -60,7 +60,7 @@ export function blastOn(w: WeaponDef, point: V3, target: Target, direct: boolean
   if (own) damage *= w.selfDamage;
   // Push away from the blast, a little upwards so disc jumps lift.
   const len = Math.hypot(dx, dy, dz) || 1;
-  const k = w.impulse * strength;
+  const k = w.impulse * strength * (own ? w.selfImpulse : 1);
   const impulse = { x: (dx / len) * k, y: (dy / len) * k + k * 0.25, z: (dz / len) * k };
   return { damage: Math.round(damage), impulse, direct, midair };
 }

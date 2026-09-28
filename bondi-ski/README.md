@@ -1,7 +1,7 @@
 # Bondi Ski
 
-Tribes on the Sydney coast: **deathmatch** on the Bondi to Coogee coastal walk (the
-default), plus a skiing **time trial and races** (`?mode=race`). The map is **Icebergs
+Tribes on the Sydney coast: **deathmatch** in walled arenas on the real coast (the
+default), plus a skiing **time trial and races** (`?mode=race`). The course is **Icebergs
 to Tamarama** (about 1.06 km of the real walk, round Marks
 Park and Mackenzies Point). You ski the real terrain: the ground, sea, walk, buildings
 and trees come from OpenStreetMap and Geoscience Australia elevation data (see
@@ -9,23 +9,41 @@ and trees come from OpenStreetMap and Geoscience Australia elevation data (see
 
 ## Deathmatch
 
+### Maps
+
+Pick one on the title card, or with `?map=` (a room's invite link carries its map):
+
+| Map | `?map=` | What it is |
+| --- | --- | --- |
+| Marks Park (default) | `marks-park` | The grassy headland between Bondi and Tamarama, 115 m across the wall's radius: a 30 m hill, cliffs and the walk's railings round the edge |
+| Bondi Beach | `bondi-beach` | The south end of the beach, 150 m radius: the park bank down to the promenade, the sand and the surf |
+| Coastal walk | `coastal-walk` | The whole course, open, 420 m from the middle before the edge hurts |
+
+The arenas are Tribes: Ascend style: a circle of the real coast inside a force-field
+wall, with the rest of Bondi as the backdrop. The wall is solid to players and discs
+alike, nearly invisible from across the arena, and lights up as you get close. The
+sea still kills inside it. Maps are data in `src/maps.ts` (centre, radius, walled);
+spawns are worked out on dry land clear of buildings (`layoutFor`), and the wall's
+colliders and look are in `src/course/physics.ts` and `src/view/forceField.ts`.
+
 Everyone keeps the skiing and jetpack, and carries two weapons modelled on Tribes:
 Ascend (every number is in the Tuning panel):
 
 | | Spinfusor (1) | Assault rifle (2) |
 | --- | --- | --- |
 | Projectile | Disc, 62 m/s, keeps 50% of your velocity | Round, 230 m/s, keeps 30% |
-| Damage | 700 on a direct hit or the centre of the blast, down to 25% at 7 m | 80 a round, no splash |
+| Damage | 700 on a direct hit or within 2 m of the blast, then down to 25% at 7 m | 80 a round, no splash |
 | Midair | ×1.1 on a direct hit against someone in the air: 770, nearly a kill from full health | none |
 | Rate | one disc every 1.1 s | three-round bursts (0.075 s apart), 0.3 s between bursts; 24-round magazine, 1.7 s reload |
-| Self | 35% of the damage, full knockback: disc jumps | none |
+| Self | 35% of the damage, 1.5× knockback: disc jumps build speed | none |
 
 Switching weapons takes 0.4 s before the new one can fire, and a weapon you've put away
 reloads itself after 3 s.
 
 900 health, back 60 hp/s after 8 s without damage; 3 s to respawn, at a spawn point
 along the course away from everyone. First to 15 kills wins; the scores show for 10 s,
-then a new match starts. Leaving the arena (420 m from the middle) hurts; the sea kills.
+then a new match starts. Getting past an arena's wall (over the top), or 420 m from the
+middle of the coastal walk, hurts; the sea kills.
 
 Enemies you can see have their name and a health bar over them, and your hits float
 up as damage numbers (yellow for a midair, red for the kill).

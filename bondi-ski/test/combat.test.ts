@@ -93,6 +93,14 @@ describe("damage", () => {
     expect(own.impulse.y).toBeGreaterThan(10);
   });
 
+  it("your own disc throws you harder than the same blast throws someone else", () => {
+    const at = { x: 0.6, y: 0.3, z: 0 };
+    const own = blastOn(disc, at, target(), false, true)!;
+    const other = blastOn(disc, at, target(), false, false)!;
+    expect(own.impulse.x / other.impulse.x).toBeCloseTo(disc.selfImpulse);
+    expect(disc.selfImpulse).toBeGreaterThan(1);
+  });
+
   it("dies at zero health, respawns after a few seconds, regenerates after a while", () => {
     const f = new Fighter();
     expect(f.hurt(500)).toBe(false);

@@ -14,13 +14,16 @@ import {
 import { TuningPanel, type FieldSpec } from "@slop/tuning";
 import { inSea, loadCourse, terrainNormal } from "./course/data";
 import { buildRoute, defaultRoute } from "./course/route";
-import { buildCoursePhysics } from "./course/physics";
+import { buildArenaWall, buildCoursePhysics, wallSpan } from "./course/physics";
+import { layoutFor, mapById, MAPS } from "./maps";
+import { ForceField } from "./view/forceField";
 import { bondiMovementPresets, bondiSkiMovement } from "./movement";
 import { Jetpack } from "./jetpack";
 import { RaceTracker, formatDelta, formatTime } from "./race/race";
 import { GhostRecorder, clearBest, loadBest, saveBest, type BestRun } from "./race/ghost";
 import { buildCourseView } from "./view/course";
 import { createSky } from "./view/sky";
+import { GpuTimer } from "./view/gpuTimer";
 import { createWater } from "./view/water";
 import { RacerView } from "./view/racer";
 import { CoastAudio } from "./audio";
@@ -31,6 +34,8 @@ import { WEAPONS, type WeaponDef } from "./combat/weapons";
 /** Deathmatch by default; the time trial and races with `?mode=race`. */
 const MODE: "dm" | "race" = new URLSearchParams(location.search).get("mode") === "race" ? "race" : "dm";
 document.body.dataset.mode = MODE;
+/** The deathmatch map, from `?map=` (the arena on Marks Park by default). */
+const MAP = mapById(new URLSearchParams(location.search).get("map"));
 import "./style.css";
 
 type Action =
@@ -79,12 +84,32 @@ const COURSE = "icebergs-tamarama";
 async function main() {
   const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const display = { renderScale: 1 };
+  const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * display.renderScale);
+  applyPixelRatio();
+  const gpuTimer = new GpuTimer(renderer.getContext() as WebGL2RenderingContext);
   renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const course = await loadCourse("course/", COURSE);
+  document.querySelector(".map-title")!.textContent = MAP.title;
+  // Other maps reload the page onto them (a room link carries its map along).
+  const mapsEl = document.querySelector<HTMLElement>(".maps")!;
+  mapsEl.append(`${MAP.blurb} Maps: `);
+  MAPS.forEach((m, i) => {
+    if (i > 0) mapsEl.append(" · ");
+    if (m === MAP) {
+      const b = document.createElement("b");
+      b.textContent = m.title;
+      mapsEl.append(b);
+    } else {
+      const a = document.createElement("a");
+      a.href = `?map=${m.id}`;
+      a.textContent = m.title;
+      mapsEl.append(a);
+    }
+  });
   document.querySelector(".credits")!.textContent =
     `${course.attribution.join(" · ")}. Terrain, the walk, buildings and trees come from this data.`;
 
@@ -114,6 +139,14 @@ async function main() {
   const physics = buildCoursePhysics(world, course, route);
   const view = buildCourseView(course, route);
   scene.add(view.root);
+  const layout = layoutFor(MAP, course, route);
+  let forceField: ForceField | null = null;
+  if (MODE === "dm" && layout.walled) {
+    buildArenaWall(world, course, MAP.centre, MAP.radius);
+    const span = wallSpan(course, MAP.centre, MAP.radius);
+    forceField = new ForceField(MAP.centre, MAP.radius, span.bottom, span.top);
+    scene.add(forceField.mesh);
+  }
   world.step();
 
   const movement: MovementSettings = { ...bondiSkiMovement };
@@ -276,7 +309,7 @@ async function main() {
 
   // ------------------------------------------------------------ deathmatch
   const dm =
-    MODE === "dm" ? new Deathmatch({ scene, camera, world, course, route, player, jet, look, audio, movement, toast: (t, s) => toast(t, s) }) : null;
+    MODE === "dm" ? new Deathmatch({ scene, camera, world, course, layout, player, jet, look, audio, movement, toast: (t, s) => toast(t, s) }) : null;
   if (dm) for (const g of view.gates) g.root.visible = false;
 
   // ------------------------------------------------------------ tuning
@@ -313,6 +346,7 @@ async function main() {
       midairBonus: [1, 3, 0.05],
       selfDamage: [0, 1, 0.05],
       impulse: [0, 40, 0.5],
+      selfImpulse: [0, 4, 0.05],
       cooldown: [0.05, 3, 0.05],
       spread: [0, 0.1, 0.001],
     };
@@ -327,6 +361,7 @@ async function main() {
   tuning.addGroup("Mouse", look.settings, { sensitivity: [0.1, 10, 0.01], mYaw: true, mPitch: true, invertY: true });
   tuning.addGroup("Audio", audio.settings, { master: [0, 1, 0.01], ocean: [0, 1, 0.01], wind: [0, 1, 0.01] });
   tuning.addGroup("Simulation", simulation, { tickRate: [20, 144, 1] });
+  tuning.addGroup("Display", display, { renderScale: [0.25, 1, 0.05] });
   tuning.addGroup("Debug", debug, { fps: true, perf: true, ghost: true });
   tuning.gui.add({ clear: () => { clearBest(bestKey); best = null; updateBest(); } }, "clear").name("Forget my best time");
   tuning.addPersistence();
@@ -337,6 +372,7 @@ async function main() {
     audio.apply();
     perfEl.hidden = !debug.perf;
     fpsEl.hidden = !debug.fps;
+    applyPixelRatio();
     updateBest();
   };
   tuning.onChange(applyTuning);
@@ -347,6 +383,8 @@ async function main() {
   let skiing = false;
   let elapsed = 0;
   let fpsShownAt = 0;
+  let drawCalls = 0;
+  let drawTris = 0;
   let lastField = 0;
   let missedToastUntil = 0;
   let forceStartUntil = 0;
@@ -469,6 +507,7 @@ async function main() {
       elapsed += frameDt;
       rig.update(player, alpha, look.yaw, look.pitch, frameDt);
       water.update(elapsed);
+      forceField?.update(camera.position, elapsed);
       // Keep the shadowed area around the player.
       const p = camera.position;
       sun.target.position.set(p.x, p.y - 10, p.z);
@@ -503,11 +542,18 @@ async function main() {
         fpsEl.textContent = `${Math.round(stats.fps)} fps`;
       }
       if (debug.perf) {
+        const gpu = gpuTimer.supported ? `${gpuTimer.ms?.toFixed(1) ?? "…"} ms` : "n/a";
         perfEl.textContent = `${Math.round(stats.fps)} fps  avg ${stats.averageMs.toFixed(1)} ms  worst ${stats.worstMs.toFixed(1)} ms\n` +
-          `tick ${loop.tickRate.toFixed(1)} Hz · mouse ${look.rawInput ? "raw" : "accelerated"} · ${renderer.info.render.calls} draws · ${Math.round(hs / SOURCE_UNIT)} u/s`;
+          `cpu: sim ${loop.tickMs.toFixed(1)} ms (${loop.ticksLastFrame} ticks) · frame ${loop.renderMs.toFixed(1)} ms · gpu ${gpu}\n` +
+          `tick ${loop.tickRate.toFixed(1)} Hz · mouse ${look.rawInput ? "raw" : "accelerated"} · ${drawCalls} draws · ${(drawTris / 1000).toFixed(0)}k tris · ${Math.round(hs / SOURCE_UNIT)} u/s`;
       }
+      if (debug.perf) gpuTimer.begin();
       renderer.render(scene, camera);
+      // The world pass's numbers (the weapon pass after it resets them).
+      drawCalls = renderer.info.render.calls;
+      drawTris = renderer.info.render.triangles;
       dm?.drawOverlay(renderer);
+      if (debug.perf) gpuTimer.end();
     },
   });
 
