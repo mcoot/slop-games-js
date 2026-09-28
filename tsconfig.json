@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "packages/*/src",
+    "tools/*.ts",
+    "tokyo-station-chase/games/*/src",
+    "tokyo-station-chase/games/*/test",
+    "tokyo-station-chase/games/*/vite.config.ts"
+  ]
+}

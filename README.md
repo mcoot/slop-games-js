@@ -3,12 +3,18 @@ Slop browser games
 
 - [`tokyo-station-chase/`](tokyo-station-chase/): first-person chase through Tokyo Station (Three.js + Rapier, Source-style movement)
 
+Everything is one pnpm workspace: shared, game-agnostic packages in [`packages/`](packages)
+(Source-style movement, input, physics, Blender level loading, tuning panel, audio, AI...)
+and Blender tools in [`tools/`](tools), used by each game's folder. `pnpm install` once at
+the root; `pnpm test` and `pnpm typecheck` there cover everything.
+
 Live at <https://slop-games.spearritt.dev/>, deployed to GitHub Pages on every push to
 `master` by `.github/workflows/pages.yml`.
 
 ## Adding a game
 
-1. Put it in its own folder with a `build` script whose output uses relative asset
+1. Put it in its own folder (add it to `pnpm-workspace.yaml` so it can depend on
+   `@slop/*` packages with `workspace:*`) with a `build` script whose output uses relative asset
    paths (Vite: `base: "./"`), since each game is served from `/<slug>/`.
 2. Add it to [`games.json`](games.json): `slug` (its URL path), `title`, `description`,
    `dir` (the folder) and `dist` (build output, relative to `dir`). The build runs

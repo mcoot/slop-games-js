@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "export-levels": "node ../../tools/export-levels.mjs assets-src/levels public/levels",
-    "bake-lighting": "node ../../tools/bake-lighting.mjs assets-src/levels/tokyo_station.blend public/levels/tokyo_station.lightmap.jpg 2048 128 && pnpm export-levels"
+    "export-levels": "node ../../../tools/export-levels.mjs assets-src/levels public/levels",
+    "bake-lighting": "node ../../../tools/bake-lighting.mjs assets-src/levels/tokyo_station.blend public/levels/tokyo_station.lightmap.jpg 2048 128 && pnpm export-levels"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

@@ -13,7 +13,7 @@ M4 Tokyo Station slice. **M0–M3 are done.**
 cd tokyo-station-chase
 pnpm install
 pnpm dev        # http://localhost:5173 (?level=station-open or ?level=sandbox for the others)
-pnpm test       # headless movement tests (Rapier runs in Node)
+pnpm test       # this game's tests, incl. headless movement (Rapier runs in Node); run it at the repo root for every package too
 pnpm typecheck
 pnpm build      # static site in games/tokyo-station/dist
 pnpm export-levels  # re-export Blender levels to .glb (needs Blender, see "Levels")
@@ -38,7 +38,8 @@ Click to capture the mouse. Esc releases it and opens the **Tuning** panel
 
 ## Layout
 
-Everything under `packages/` is game-agnostic and meant to be reused by later games;
+The shared packages live at the repo root in [`packages/`](../packages) (and the Blender tools in
+[`tools/`](../tools)), in one pnpm workspace with every game. They're game-agnostic;
 only `games/tokyo-station` knows about Tokyo, yen or trains.
 
 | Package | What it does |
@@ -64,7 +65,7 @@ only `games/tokyo-station` knows about Tokyo, yen or trains.
 - Simulation runs at a fixed 66.67 Hz (Source's default tick) and rendering
   interpolates between ticks, so movement is identical at 60 Hz and 240 Hz.
   Mouse look is applied every rendered frame, never quantised to ticks.
-- Movement numbers live in `MovementSettings` (`packages/fps-controller/src/settings.ts`).
+- Movement numbers live in `MovementSettings` (`../packages/fps-controller/src/settings.ts`).
   "Tokyo default" is the starting feel; CS:S-like and HL2-like presets are there to compare.
 
 ## Levels

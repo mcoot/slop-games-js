@@ -24,51 +24,6 @@ importers:
         specifier: ^5.0.2
         version: 5.0.2(@types/node@22.20.4)(vite@8.3.1(@types/node@22.20.4))
 
-  games/tokyo-station:
-    dependencies:
-      '@dimforge/rapier3d-compat':
-        specifier: ^0.21.0
-        version: 0.21.0
-      '@recast-navigation/three':
-        specifier: 0.43.1
-        version: 0.43.1(@types/three@0.186.0)(three@0.186.1)
-      '@slop/ai':
-        specifier: workspace:*
-        version: link:../../packages/ai
-      '@slop/audio':
-        specifier: workspace:*
-        version: link:../../packages/audio
-      '@slop/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@slop/fps-controller':
-        specifier: workspace:*
-        version: link:../../packages/fps-controller
-      '@slop/input':
-        specifier: workspace:*
-        version: link:../../packages/input
-      '@slop/interaction':
-        specifier: workspace:*
-        version: link:../../packages/interaction
-      '@slop/level-loader':
-        specifier: workspace:*
-        version: link:../../packages/level-loader
-      '@slop/physics':
-        specifier: workspace:*
-        version: link:../../packages/physics
-      '@slop/signage':
-        specifier: workspace:*
-        version: link:../../packages/signage
-      '@slop/tuning':
-        specifier: workspace:*
-        version: link:../../packages/tuning
-      '@slop/ui-screens':
-        specifier: workspace:*
-        version: link:../../packages/ui-screens
-      three:
-        specifier: ^0.186.1
-        version: 0.186.1
-
   packages/ai:
     dependencies:
       '@dimforge/rapier3d-compat':
@@ -144,6 +99,53 @@ importers:
         version: 0.21.0
 
   packages/ui-screens: {}
+
+  tokyo-station-chase: {}
+
+  tokyo-station-chase/games/tokyo-station:
+    dependencies:
+      '@dimforge/rapier3d-compat':
+        specifier: ^0.21.0
+        version: 0.21.0
+      '@recast-navigation/three':
+        specifier: 0.43.1
+        version: 0.43.1(@types/three@0.186.0)(three@0.186.1)
+      '@slop/ai':
+        specifier: workspace:*
+        version: link:../../../packages/ai
+      '@slop/audio':
+        specifier: workspace:*
+        version: link:../../../packages/audio
+      '@slop/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@slop/fps-controller':
+        specifier: workspace:*
+        version: link:../../../packages/fps-controller
+      '@slop/input':
+        specifier: workspace:*
+        version: link:../../../packages/input
+      '@slop/interaction':
+        specifier: workspace:*
+        version: link:../../../packages/interaction
+      '@slop/level-loader':
+        specifier: workspace:*
+        version: link:../../../packages/level-loader
+      '@slop/physics':
+        specifier: workspace:*
+        version: link:../../../packages/physics
+      '@slop/signage':
+        specifier: workspace:*
+        version: link:../../../packages/signage
+      '@slop/tuning':
+        specifier: workspace:*
+        version: link:../../../packages/tuning
+      '@slop/ui-screens':
+        specifier: workspace:*
+        version: link:../../../packages/ui-screens
+      three:
+        specifier: ^0.186.1
+        version: 0.186.1
 
 packages:
 
