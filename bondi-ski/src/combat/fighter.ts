@@ -23,6 +23,8 @@ export class Fighter {
   respawnIn = 0;
   sinceHurt = Infinity;
   readonly weapons: Record<WeaponId, WeaponState>;
+  /** Grenades: thrown with their own key, whatever's in your hands. */
+  readonly grenades = new WeaponState(WEAPONS.grenade);
   current: WeaponId = "disc";
   /** Seconds left of drawing the current weapon (it can't fire until then). */
   switching = 0;
@@ -69,6 +71,11 @@ export class Fighter {
     return this.weapon.tick(held, dt);
   }
 
+  /** Per tick: returns 1 if a grenade is thrown now (pressed, one in stock, not cooling down). */
+  tickGrenade(pressed: boolean, dt: number): number {
+    return this.grenades.tick(pressed && this.alive && this.grenades.ammo > 0, dt);
+  }
+
   /** Take damage; returns true if this killed them. */
   hurt(amount: number): boolean {
     if (!this.alive || amount <= 0) return false;
@@ -101,5 +108,6 @@ export class Fighter {
     this.sinceHurt = Infinity;
     this.switching = 0;
     for (const w of Object.values(this.weapons)) w.reset();
+    this.grenades.reset();
   }
 }

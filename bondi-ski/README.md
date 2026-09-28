@@ -26,16 +26,16 @@ sea still kills inside it. Maps are data in `src/maps.ts` (centre, radius, walle
 spawns are worked out on dry land clear of buildings (`layoutFor`), and the wall's
 colliders and look are in `src/course/physics.ts` and `src/view/forceField.ts`.
 
-Everyone keeps the skiing and jetpack, and carries two weapons modelled on Tribes:
+Everyone keeps the skiing and jetpack, and carries two weapons and three impact grenades modelled on Tribes:
 Ascend (every number is in the Tuning panel):
 
-| | Spinfusor (1) | Assault rifle (2) |
-| --- | --- | --- |
-| Projectile | Disc, 62 m/s, keeps 50% of your velocity | Round, 230 m/s, keeps 30% |
-| Damage | 700 on a direct hit or within 2 m of the blast, then down to 25% at 7 m | 80 a round, no splash |
-| Midair | ×1.1 on a direct hit against someone in the air: 770, nearly a kill from full health | none |
-| Rate | one disc every 1.1 s | three-round bursts (0.075 s apart), 0.3 s between bursts; 24-round magazine, 1.7 s reload |
-| Self | 35% of the damage, 1.5× knockback: disc jumps build speed | none |
+| | Spinfusor (1) | Assault rifle (2) | Impact Nitron (F) |
+| --- | --- | --- | --- |
+| Projectile | Disc, 62 m/s, keeps 50% of your velocity | Round, 230 m/s, keeps 50% | Grenade, 30 m/s thrown in an arc, keeps 50%, bursts on impact |
+| Damage | 700 on a direct hit or within 2 m of the blast, then down to 25% at 7 m | 80 a round, no splash | 450 within 1.5 m, down to 30% at 8 m |
+| Midair | ×1.1 on a direct hit against someone in the air: 770, nearly a kill from full health | none | none |
+| Rate | one disc every 1.1 s | three-round bursts (0.075 s apart), 0.3 s between bursts; 24-round magazine, 1.7 s reload | one every 0.8 s; 3 per life, restocked when you respawn |
+| Self | 35% of the damage, 1.5× knockback: disc jumps build speed | none | 35%, 1.5× knockback |
 
 Switching weapons takes 0.4 s before the new one can fire, and a weapon you've put away
 reloads itself after 3 s.
@@ -58,6 +58,7 @@ share the link) it's players only.
 | Left mouse | Fire |
 | 1 / 2 / Q / wheel | Spinfusor / assault rifle / swap |
 | R | Reload |
+| F | Throw an impact grenade |
 | Tab | Scores |
 
 ### How the fighting works
