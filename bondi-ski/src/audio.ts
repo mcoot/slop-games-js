@@ -72,9 +72,30 @@ export class CoastAudio {
     this.apply();
   }
 
+  /** Sound off: remembered in this browser. */
+  get muted(): boolean {
+    try {
+      return localStorage.getItem("bondi-ski.muted") === "1";
+    } catch {
+      return this.mutedFallback;
+    }
+  }
+
+  set muted(v: boolean) {
+    this.mutedFallback = v;
+    try {
+      localStorage.setItem("bondi-ski.muted", v ? "1" : "0");
+    } catch {
+      // storage unavailable: lasts this visit
+    }
+    this.apply();
+  }
+
+  private mutedFallback = false;
+
   apply(): void {
     if (!this.engine) return;
-    this.engine.master.gain.value = this.settings.master;
+    this.engine.master.gain.value = this.muted ? 0 : this.settings.master;
     this.ocean?.setLevel(this.settings.ocean, 0.5);
   }
 
@@ -102,6 +123,15 @@ export class CoastAudio {
     const e = this.engine;
     if (!e) return;
     playMelody(e, e.pa, personalBest ? PERSONAL_BEST : FINISH, 200, e.ctx.currentTime + 0.3, 0.12);
+  }
+
+  /** A low double buzz: you went through the wrong gate. */
+  missed(): void {
+    const e = this.engine;
+    if (!e) return;
+    const t = e.ctx.currentTime + 0.01;
+    e.tone(e.sfx, 196, t, 0.25, 0.2, [[1, 1], [1.5, 0.4]]);
+    e.tone(e.sfx, 185, t + 0.18, 0.35, 0.2, [[1, 1], [1.5, 0.4]]);
   }
 
   splash(): void {

@@ -32,6 +32,7 @@ export function buildCourseView(course: CourseData, route: Route): CourseView {
   root.add(buildingsMesh(course));
   root.add(poolsMesh(course));
   root.add(treesMesh(course));
+  root.add(heathMesh(course));
   root.add(propsMesh(course));
   root.add(railsMesh(route));
   const gates = route.gates.map((g, i) => gateView(course, route, i, g.name));
@@ -274,6 +275,38 @@ function treesMesh(course: CourseData): THREE.Group {
   return group;
 }
 
+/**
+ * Coastal heath: low, rounded banksia and saltbush clumps scattered over the scrub
+ * cells between the suburbs and the cliffs. Decoration only: you ski through them.
+ */
+function heathMesh(course: CourseData): THREE.InstancedMesh {
+  const t = course.terrain;
+  const spots: [number, number, number, number][] = [];
+  for (let r = 0; r < t.rows; r++) {
+    for (let c = 0; c < t.cols; c++) {
+      const i = r * t.cols + c;
+      if (t.surface[i] !== Surface.scrub || rand(i * 3.7) > 0.55) continue;
+      const x = t.x0 + (c + rand(i) - 0.5) * t.cell;
+      const z = t.z0 + (r + rand(i * 1.3) - 0.5) * t.cell;
+      spots.push([x, heightAt(t, x, z), z, 0.6 + rand(i * 2.1) * 0.9]);
+    }
+  }
+  const geom = new THREE.IcosahedronGeometry(1, 0).scale(1.1, 0.6, 1.1).translate(0, 0.3, 0);
+  const mesh = new THREE.InstancedMesh(geom, new THREE.MeshLambertMaterial({ color: "#ffffff" }), spots.length);
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const c = new THREE.Color();
+  const greens = ["#5f7a3a", "#6f8646", "#4f6b35", "#7d8a4d", "#8a8f5a"].map((h) => new THREE.Color(h));
+  spots.forEach(([x, y, z, s], k) => {
+    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand(k * 5.3) * Math.PI * 2);
+    m.compose(new THREE.Vector3(x, y - 0.1, z), q, new THREE.Vector3(s, s * (0.7 + rand(k) * 0.6), s));
+    mesh.setMatrixAt(k, m);
+    mesh.setColorAt(k, c.copy(greens[k % greens.length]!));
+  });
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 function propsMesh(course: CourseData): THREE.Group {
   const group = new THREE.Group();
   // Benches.
@@ -333,14 +366,15 @@ function railsMesh(route: Route): THREE.Mesh {
 
 // ------------------------------------------------------------------ gates
 
-/** An arch over the walk, facing along the course, with a glowing portal and the landmark's name. */
+/**
+ * An arch over the walk: two posts, a banner, a glowing portal you have to pass through,
+ * and a tall beam of light over the next gate so you can find it from anywhere.
+ */
 function gateView(course: CourseData, route: Route, index: number, name: string): GateView {
-  const gate = route.gates[index]!;
-  const p = gate.sample;
-  const at = gate.pathPoint;
-  const W = 7;
+  const a = route.gates[index]!.arch;
+  const W = a.halfWidth;
   const root = new THREE.Group();
-  const yaw = Math.atan2(-p.tx, -p.tz);
+  const yaw = Math.atan2(-a.tx, -a.tz);
   const postMat = new THREE.MeshLambertMaterial({ color: "#f4f1ea" });
   const glowMat = new THREE.MeshBasicMaterial({
     color: "#ffd84a",
@@ -350,32 +384,37 @@ function gateView(course: CourseData, route: Route, index: number, name: string)
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
-  let base = Infinity;
-  const top = Math.max(at.y, heightAt(course.terrain, at.x, at.z)) + 7;
   for (const side of [-1, 1]) {
-    const x = at.x + p.rx * W * side;
-    const z = at.z + p.rz * W * side;
-    const ground = heightAt(course.terrain, x, z);
-    base = Math.min(base, ground);
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, top - ground + 1, 0.5), postMat);
-    post.position.set(x, (top + ground - 1) / 2, z);
+    const x = a.x + a.rx * W * side;
+    const z = a.z + a.rz * W * side;
+    const ground = heightAt(course.terrain, x, z) - 1;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.6, a.top - ground, 0.6), postMat);
+    post.position.set(x, (a.top + ground) / 2, z);
     post.castShadow = true;
     root.add(post);
   }
-  const portal = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, top - base), glowMat);
-  portal.position.set(at.x, (top + base) / 2, at.z);
+  const portalBottom = a.bottom + 3;
+  const portal = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, a.top - portalBottom), glowMat);
+  portal.position.set(a.x, (a.top + portalBottom) / 2, a.z);
   portal.rotation.y = yaw;
   root.add(portal);
   const label = index === 0 ? "START" : index === route.gates.length - 1 ? `FINISH · ${name}` : `${index} · ${name}`;
-  const banner = textPlane(label, W * 2, 1.8);
-  banner.position.set(at.x, top + 0.9, at.z);
+  const banner = textPlane(label, W * 2 + 0.6, 2);
+  banner.position.set(a.x, a.top + 1, a.z);
   banner.rotation.y = yaw;
   root.add(banner);
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.2, 1.2, 160, 16, 1, true),
+    new THREE.MeshBasicMaterial({ color: "#ff9f1a", transparent: true, opacity: 0.45, depthWrite: false, fog: false }),
+  );
+  beam.position.set(a.x, a.top + 80, a.z);
+  root.add(beam);
   return {
     root,
     setState(state) {
       glowMat.color.set(state === "next" ? "#ffd84a" : state === "passed" ? "#3ddc84" : "#9ecbff");
       glowMat.opacity = state === "next" ? 0.22 : 0.08;
+      beam.visible = state === "next";
     },
   };
 }

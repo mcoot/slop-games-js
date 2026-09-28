@@ -2,23 +2,16 @@ import type { Gate } from "../course/route";
 import type { Vec3 } from "../course/data";
 
 /**
- * One racer's run through the gates. Gates are vertical planes across the course;
- * passing one means crossing its plane going forwards, within `halfWidth` of its
- * centre, in order. The clock starts when you cross the start gate (leave the pad)
+ * One racer's run through the gates. Passing a gate means going through its arch
+ * forwards, in order; going through a later one first tells you which you missed. The clock starts when you cross the start gate (leave the pad)
  * and stops at the last. Pure state, driven by positions each tick, so the same code
  * can track remote racers from their snapshots later.
  */
-export interface RaceSettings {
-  /** How far either side of the course a gate counts (m): wide, so you can take your own line. */
-  halfWidth: number;
-}
-
-export const defaultRaceSettings: RaceSettings = { halfWidth: 45 };
-
 export type RaceState = "ready" | "running" | "finished";
 
 export interface RaceEvent {
-  kind: "start" | "split" | "finish";
+  /** "missed": went through a later gate's arch; `gate` is the one still to pass. */
+  kind: "start" | "split" | "finish" | "missed";
   gate: number;
   /** Seconds since the start. */
   time: number;
@@ -34,10 +27,7 @@ export class RaceTracker {
   splits: number[] = [];
   readonly events: RaceEvent[] = [];
 
-  constructor(
-    public gates: Gate[],
-    readonly settings: RaceSettings = { ...defaultRaceSettings },
-  ) {}
+  constructor(public gates: Gate[]) {}
 
   reset(): void {
     this.state = "ready";
@@ -67,8 +57,13 @@ export class RaceTracker {
     if (this.state === "finished") return this.events;
     const gate = this.gates[this.next];
     if (!gate) return this.events;
-    const hit = crossing(gate, from, to, this.settings.halfWidth);
-    if (hit === null) return this.events;
+    const hit = crossing(gate, from, to);
+    if (hit === null) {
+      if (this.state === "running" && this.gates.slice(this.next + 1).some((g) => crossing(g, from, to) !== null)) {
+        this.events.push({ kind: "missed", gate: this.next, time: this.time });
+      }
+      return this.events;
+    }
     if (this.state === "ready") {
       // Start the clock at the exact moment of crossing.
       this.state = "running";
@@ -90,17 +85,18 @@ export class RaceTracker {
   }
 }
 
-/** Fraction (0..1) along from→to where it crosses the gate's plane forwards, or null. */
-export function crossing(gate: Gate, from: Vec3, to: Vec3, halfWidth: number): number | null {
-  const p = gate.sample;
-  const d0 = (from.x - p.x) * p.tx + (from.z - p.z) * p.tz;
-  const d1 = (to.x - p.x) * p.tx + (to.z - p.z) * p.tz;
+/** Fraction (0..1) along from→to where it passes forwards through the gate's arch, or null. */
+export function crossing(gate: Gate, from: Vec3, to: Vec3): number | null {
+  const a = gate.arch;
+  const d0 = (from.x - a.x) * a.tx + (from.z - a.z) * a.tz;
+  const d1 = (to.x - a.x) * a.tx + (to.z - a.z) * a.tz;
   if (!(d0 < 0 && d1 >= 0)) return null;
   const f = d0 / (d0 - d1);
   const x = from.x + (to.x - from.x) * f;
+  const y = from.y + (to.y - from.y) * f;
   const z = from.z + (to.z - from.z) * f;
-  const side = (x - p.x) * p.rx + (z - p.z) * p.rz;
-  return Math.abs(side) <= halfWidth ? f : null;
+  const side = (x - a.x) * a.rx + (z - a.z) * a.rz;
+  return Math.abs(side) <= a.halfWidth && y >= a.bottom && y <= a.top ? f : null;
 }
 
 /** "1:02.345" */

@@ -16,7 +16,7 @@ because at 4 m the DEM smears the cliff edge across it.
 
 ## The area
 
-`tools/area.mjs` sets the bounding box (Bondi Icebergs to just past Tamarama Beach) and
+`tools/area.mjs` sets the bounding box (Bondi Beach to just past Tamarama Beach) and
 the local frame: metres, +X east, -Z north, Y up, sea level at 0, origin near Marks Park.
 The OSM snapshot's timestamp is in `osm.json` and copied into the course file.
 
@@ -27,3 +27,5 @@ The OSM snapshot's timestamp is in `osm.json` and copied into the course file.
 - Buildings without `building:levels` or `height` tags (most of them) get 2–4 storeys
   picked from their OSM id, 2 for houses.
 - Trees are all the same few low-poly shapes; OSM doesn't say which are Norfolk Island pines.
+- Coastal heath (the scrub between suburbs and cliffs) is inferred: unmapped land within ~45 m of the coastline.
+- Rock shelves at the waterline come from OSM `natural=bare_rock` areas past the coastline, set just above sea level.

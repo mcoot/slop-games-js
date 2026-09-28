@@ -46,6 +46,15 @@ export function sandstoneMaterial(options: { perVertex: boolean; vertexColors?: 
           vec3 rust = vec3(0.6, 0.3, 0.16);
           vec3 c = mix(ochre, cream, band);
           c = mix(c, rust, thin * 0.55);
+          // Honeycomb weathering (tafoni): clusters of small dark hollows, thicker in
+          // some bands than others.
+          vec2 hp = vec2(p.x + p.z * 0.7, p.y * 1.6) * 1.3;
+          vec2 cell = floor(hp);
+          vec2 f = fract(hp) - 0.5;
+          float r = strataHash(cell) * 0.25 + 0.18;
+          float pit = smoothstep(r, r - 0.08, length(f + (vec2(strataHash(cell + 7.1), strataHash(cell + 3.3)) - 0.5) * 0.3));
+          float where = smoothstep(0.45, 0.8, strataNoise(p.xz * 0.08 + p.y * 0.15)) * (0.4 + band * 0.6);
+          c *= 1.0 - pit * where * 0.45;
           return c * (0.88 + grain * 0.2);
         }`,
       )

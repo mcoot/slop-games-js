@@ -3,7 +3,7 @@
 // Game units are metres, Y up. The origin is ORIGIN (sea level there), +X is east and
 // -Z is north, so a map drawn on the ground reads the usual way from above.
 
-export const AREA = { south: -33.9025, west: 151.2655, north: -33.892, east: 151.28 };
+export const AREA = { south: -33.9025, west: 151.2685, north: -33.8845, east: 151.284 };
 export const ORIGIN = { lat: -33.8972, lon: 151.2728 };
 export const TERRAIN_ZOOM = 15;
 

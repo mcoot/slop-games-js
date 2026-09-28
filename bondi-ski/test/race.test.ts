@@ -7,13 +7,14 @@ import { Ghost, GhostRecorder } from "../src/race/ghost";
 function gates(n: number): Gate[] {
   return Array.from({ length: n }, (_, i) => {
     const sample: Sample = { s: i * 10, x: 0, z: -i * 10, y: 0, tx: 0, tz: -1, rx: 1, rz: 0 };
-    return { name: `g${i}`, index: i, sample, pathPoint: { x: 0, y: 0, z: -i * 10 } };
+    const arch = { x: 0, z: -i * 10, tx: 0, tz: -1, rx: 1, rz: 0, halfWidth: 5, bottom: -2, top: 8 };
+    return { name: `g${i}`, index: i, sample, pathPoint: { x: 0, y: 0, z: -i * 10 }, arch };
   });
 }
 
 describe("race tracker", () => {
   it("starts on the first gate, splits in order and stops at the last", () => {
-    const race = new RaceTracker(gates(3), { halfWidth: 5 });
+    const race = new RaceTracker(gates(3));
     let z = 5;
     const events = [];
     for (let i = 0; i < 100; i++) {
@@ -28,8 +29,19 @@ describe("race tracker", () => {
     expect(race.state).toBe("finished");
   });
 
+  it("only counts going through the arch, not over or around it, and says which gate was missed", () => {
+    const race = new RaceTracker(gates(3));
+    race.tick(0.1, { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: -1 });
+    expect(race.state).toBe("running");
+    // Over gate 1's arch: nothing.
+    expect(race.tick(0.1, { x: 0, y: 20, z: -9 }, { x: 0, y: 20, z: -11 })).toHaveLength(0);
+    // Through gate 2 having skipped 1: missed.
+    expect(race.tick(0.1, { x: 0, y: 1, z: -19 }, { x: 0, y: 1, z: -21 })).toEqual([{ kind: "missed", gate: 1, time: expect.any(Number) }]);
+    expect(race.next).toBe(1);
+  });
+
   it("ignores gates passed out of order, backwards or wide", () => {
-    const race = new RaceTracker(gates(3), { halfWidth: 5 });
+    const race = new RaceTracker(gates(3));
     // Wide of the start gate: nothing.
     expect(race.tick(0.1, { x: 8, y: 0, z: 1 }, { x: 8, y: 0, z: -1 })).toHaveLength(0);
     // Backwards through it: nothing.

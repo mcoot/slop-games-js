@@ -92,6 +92,12 @@ export function createWater(terrain: Terrain, sunDirection: THREE.Vector3): { me
         float swell = 0.5 + 0.5 * sin(time * 0.9 - d * 1.6);
         float foam = smoothstep(1.6, 0.0, d) * smoothstep(0.35, 0.75, noise(vWorld.xz * 0.35 + vec2(time * 0.15, 0.0)) * 0.6 + swell * 0.6);
         foam += smoothstep(0.35, 0.0, d);
+        // Breakers: lines of white water rolling in over the shallows, broken up along
+        // their length, fading as they reach the shore.
+        float set = fract(d * 0.16 + time * 0.12);
+        float crest = smoothstep(0.0, 0.05, set) * smoothstep(0.22, 0.05, set);
+        float broken = smoothstep(0.3, 0.7, noise(vWorld.xz * 0.12 + vec2(time * 0.05, -time * 0.03)));
+        foam += crest * broken * smoothstep(7.0, 2.0, d) * smoothstep(0.5, 1.5, d) * 0.9;
         col = mix(col, vec3(0.96, 0.98, 1.0), clamp(foam, 0.0, 1.0) * 0.9);
 
         gl_FragColor = vec4(col, mix(0.82, 0.96, smoothstep(0.0, 4.0, d)));

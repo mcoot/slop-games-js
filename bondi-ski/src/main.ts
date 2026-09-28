@@ -17,7 +17,7 @@ import { buildRoute, defaultRoute } from "./course/route";
 import { buildCoursePhysics } from "./course/physics";
 import { bondiMovementPresets, bondiSkiMovement } from "./movement";
 import { Jetpack } from "./jetpack";
-import { RaceTracker, defaultRaceSettings, formatDelta, formatTime } from "./race/race";
+import { RaceTracker, formatDelta, formatTime } from "./race/race";
 import { GhostRecorder, clearBest, loadBest, saveBest, type BestRun } from "./race/ghost";
 import { buildCourseView } from "./view/course";
 import { createSky } from "./view/sky";
@@ -27,7 +27,7 @@ import { CoastAudio } from "./audio";
 import { Multiplayer } from "./net/multiplayer";
 import "./style.css";
 
-type Action = "forward" | "back" | "left" | "right" | "jump" | "jet" | "crouch" | "restart" | "checkpoint" | "ghost" | "start";
+type Action = "forward" | "back" | "left" | "right" | "jump" | "jet" | "crouch" | "restart" | "checkpoint" | "ghost" | "start" | "mute";
 
 const bindings: Record<Action, string[]> = {
   forward: ["KeyW", "ArrowUp"],
@@ -42,6 +42,7 @@ const bindings: Record<Action, string[]> = {
   checkpoint: ["KeyF"],
   ghost: ["KeyG"],
   start: ["Enter", "NumpadEnter"],
+  mute: ["KeyM"],
 };
 
 const COURSE = "icebergs-tamarama";
@@ -89,7 +90,7 @@ async function main() {
   const movement: MovementSettings = { ...bondiSkiMovement };
   const cameraFeel = { ...defaultCameraFeel, sourceFov: 100, landingDip: true };
   const simulation = { tickRate: 66.67 };
-  const race = new RaceTracker(route.gates, { ...defaultRaceSettings });
+  const race = new RaceTracker(route.gates);
   const debug = { perf: false, ghost: true };
 
   const spawn = route.respawn(0);
@@ -265,7 +266,6 @@ async function main() {
   });
   tuning.addGroup("Camera", cameraFeel, { sourceFov: [60, 130, 1], landingDip: true, headBob: [0, 0.08, 0.005] });
   tuning.addGroup("Mouse", look.settings, { sensitivity: [0.1, 10, 0.01], mYaw: true, mPitch: true, invertY: true });
-  tuning.addGroup("Race", race.settings, { halfWidth: [5, 80, 1] });
   tuning.addGroup("Audio", audio.settings, { master: [0, 1, 0.01], ocean: [0, 1, 0.01], wind: [0, 1, 0.01] });
   tuning.addGroup("Simulation", simulation, { tickRate: [20, 144, 1] });
   tuning.addGroup("Debug", debug, { perf: true, ghost: true });
@@ -287,11 +287,13 @@ async function main() {
   let skiing = false;
   let elapsed = 0;
   let lastField = 0;
+  let missedToastUntil = 0;
   const loop = new FixedLoop({
     tickRate: simulation.tickRate,
     tick(dt) {
       if (input.consumePresses("restart") > 0) restart();
       if (input.consumePresses("checkpoint") > 0) backToGate("Back");
+      if (input.consumePresses("mute") > 0) setMuted(!audio.muted);
       if (input.consumePresses("ghost") > 0) {
         debug.ghost = !debug.ghost;
         updateBest();
@@ -332,6 +334,14 @@ async function main() {
       if (player.events.landedSpeed > 6) audio.landing(player.events.landedSpeed / 25);
 
       for (const e of race.tick(dt, from, player.feet)) {
+        if (e.kind === "missed") {
+          if (performance.now() > missedToastUntil) {
+            missedToastUntil = performance.now() + 3000;
+            audio.missed();
+            toast(`Missed gate ${e.gate} · ${route.gates[e.gate]!.name}: go back through it`, 3);
+          }
+          continue;
+        }
         if (e.kind === "start") {
           recorder.reset();
           ghost.clearTrail();
@@ -417,6 +427,20 @@ async function main() {
   };
   window.addEventListener("resize", resize);
   resize();
+
+  // Sound on/off: M in game, or the button on the title card.
+  const soundButton = document.querySelector<HTMLButtonElement>("#sound")!;
+  const setMuted = (muted: boolean) => {
+    audio.muted = muted;
+    soundButton.textContent = muted ? "Sound: off" : "Sound: on";
+    soundButton.setAttribute("aria-pressed", String(muted));
+    if (look.isLocked) toast(muted ? "Sound off (M)" : "Sound on (M)", 1.2);
+  };
+  soundButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setMuted(!audio.muted);
+  });
+  setMuted(audio.muted);
 
   const overlay = document.querySelector<HTMLElement>("#overlay")!;
   const resume = document.querySelector<HTMLElement>("#resume")!;

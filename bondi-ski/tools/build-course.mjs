@@ -28,8 +28,8 @@ const COURSE = {
   ],
 };
 
-/** Terrain grid spacing (m). The source DEM is ~4 m per pixel here. */
-const CELL = 4;
+/** Terrain grid spacing (m). The source DEM is ~4 m per pixel here; we resample it smoothly. */
+const CELL = 3;
 
 /** Surface classes, painted per terrain cell. Keep in sync with src/course/data.ts. */
 const S = { urban: 0, grass: 1, sand: 2, rock: 3, sea: 4, road: 5, path: 6, scrub: 7 };
@@ -53,20 +53,29 @@ function demPixel(px, py) {
   return t.data[i] * 256 + t.data[i + 1] + t.data[i + 2] / 256 - 32768;
 }
 
-/** Bilinear elevation (m above sea level) at a lat/lon. Pixel values are at pixel centres. */
+/** Catmull-Rom weights for the four samples around a fraction t. */
+function cubic(t) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return [-0.5 * t3 + t2 - 0.5 * t, 1.5 * t3 - 2.5 * t2 + 1, -1.5 * t3 + 2 * t2 + 0.5 * t, 0.5 * t3 - 0.5 * t2];
+}
+
+/** Bicubic elevation (m above sea level) at a lat/lon: smooth, so no 4 m facets. Pixel values are at pixel centres. */
 function elevation(lat, lon) {
   const [fx, fy] = tileXY(lat, lon);
   const x = fx * 256 - 0.5;
   const y = fy * 256 - 0.5;
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);
-  const ax = x - x0;
-  const ay = y - y0;
-  const h00 = demPixel(x0, y0);
-  const h10 = demPixel(x0 + 1, y0);
-  const h01 = demPixel(x0, y0 + 1);
-  const h11 = demPixel(x0 + 1, y0 + 1);
-  return (h00 * (1 - ax) + h10 * ax) * (1 - ay) + (h01 * (1 - ax) + h11 * ax) * ay;
+  const wx = cubic(x - x0);
+  const wy = cubic(y - y0);
+  let h = 0;
+  for (let j = 0; j < 4; j++) {
+    let row = 0;
+    for (let i = 0; i < 4; i++) row += demPixel(x0 - 1 + i, y0 - 1 + j) * wx[i];
+    h += row * wy[j];
+  }
+  return h;
 }
 
 // ---------------------------------------------------------------- grid
@@ -90,6 +99,8 @@ for (let r = 0; r < rows; r++) {
 }
 
 // ---------------------------------------------------------------- geometry helpers
+
+const rand = (n) => ((Math.sin(n * 12.9898 + 4.1) * 43758.5453) % 1 + 1) % 1;
 
 const P = (geom) => geom.map(([lat, lon]) => project(lat, lon));
 
@@ -206,7 +217,14 @@ const paint = (cls, pred) => {
 paint(S.grass, (t) => ["park", "garden", "pitch", "playground"].includes(t.leisure) || t.landuse === "grass");
 paint(S.scrub, (t) => ["wood", "scrub"].includes(t.natural));
 paint(S.sand, (t) => t.natural === "beach" || t.natural === "sand");
-paint(S.rock, (t) => t.natural === "bare_rock");
+// Rock shelves: where OSM maps bare rock out past the coastline, a flat sandstone
+// platform just above the water, like the tidal shelves under Icebergs and Mackenzies Point.
+for (const poly of areas((t) => t.natural === "bare_rock")) {
+  forCellsInPolygon(poly, (i) => {
+    if (surface[i] === S.sea) heights[i] = 0.5 + rand(i) * 0.3;
+    surface[i] = S.rock;
+  });
+}
 for (const w of ways.filter((w) => w.tags.natural === "cliff")) {
   forCellsNearLine(P(w.geometry), 5, (i) => {
     if (surface[i] !== S.sea) surface[i] = S.rock;
@@ -304,12 +322,59 @@ const pathY = rawY.map((_, i) => {
   }
   return sum / n;
 });
+// Smooth the ground within a few tens of metres of the walk (blurred towards the walk,
+// fading out further away), so skiing near it flows rather than rattling over the DEM's
+// bumps. Cliffs further out keep their shape.
+{
+  const NEAR = 14;
+  const FAR = 40;
+  const near = new Float32Array(cols * rows).fill(Infinity);
+  forCellsNearLine(path, FAR, (k, d) => {
+    if (d < near[k]) near[k] = d;
+  });
+  let blurred = Float32Array.from(heights);
+  const R = 3; // cells: a box blur of ±9 m, three passes ≈ Gaussian
+  for (let pass = 0; pass < 3; pass++) {
+    const tmp = new Float32Array(cols * rows);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        let sum = 0;
+        let n = 0;
+        for (let d = -R; d <= R; d++) {
+          const cc = Math.min(Math.max(c + d, 0), cols - 1);
+          sum += blurred[r * cols + cc];
+          n++;
+        }
+        tmp[r * cols + c] = sum / n;
+      }
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        let sum = 0;
+        let n = 0;
+        for (let d = -R; d <= R; d++) {
+          const rr = Math.min(Math.max(r + d, 0), rows - 1);
+          sum += tmp[rr * cols + c];
+          n++;
+        }
+        blurred[r * cols + c] = sum / n;
+      }
+    }
+  }
+  for (let k = 0; k < cols * rows; k++) {
+    if (near[k] === Infinity || surface[k] === S.sea) continue;
+    const w = near[k] <= NEAR ? 1 : 1 - (near[k] - NEAR) / (FAR - NEAR);
+    // Never lift the ground out of the sea or sink it under: blur only land towards land.
+    heights[k] = heights[k] + (Math.max(blurred[k], 0.6) - heights[k]) * w * w * (3 - 2 * w) * 0.85;
+  }
+}
+
 // Carve the walk into the terrain: flat across (it's a path, not a slope), blending
 // back into the ground a few metres either side. At 4 m the DEM smears the cliff edge
 // over the walk, which otherwise tips you into the sea.
 {
-  const FLAT = 2.5;
-  const BLEND = 7;
+  const FLAT = 3;
+  const BLEND = 9;
   const weight = new Float32Array(cols * rows);
   const target = new Float32Array(cols * rows);
   for (let i = 0; i + 1 < path.length; i++) {
@@ -337,6 +402,18 @@ for (const w of ways) {
   if (FOOT.has(w.tags.highway)) forCellsNearLine(P(w.geometry), 1.6, (i) => {
     if (surface[i] !== S.sea) surface[i] = S.path;
   });
+}
+
+// Coastal heath: the scrubby banksia and grasses between the suburbs and the cliffs.
+{
+  const coastNear = new Float32Array(cols * rows).fill(Infinity);
+  for (const line of coast) forCellsNearLine(line, 45, (k, d) => {
+    if (d < coastNear[k]) coastNear[k] = d;
+  });
+  for (let k = 0; k < cols * rows; k++) {
+    if (surface[k] !== S.urban || coastNear[k] === Infinity) continue;
+    if (coastNear[k] < 30 || rand(k * 1.7) < (45 - coastNear[k]) / 15) surface[k] = S.scrub;
+  }
 }
 
 let length = 0;

@@ -32,13 +32,15 @@ from Icebergs to Tamarama without ending up in the sea.
 | R | Restart the run |
 | F | Back to the last gate |
 | G | Show or hide your best run's ghost |
+| M | Sound on/off (also a button on the title card; remembered) |
 | Esc | Release the mouse; Tuning panel top right |
 
 Skiing drops all ground friction: downhills turn into speed, momentum carries you up
 the next rise, and you take off over crests. Land on a downslope and you keep your
 speed. Running is only for getting going; the jetpack gets you up climbs or over
-railings. The clock starts at the start gate and stops at Tamarama. Gates are wide
-planes across the course, so you can take your own line. Landing in the sea puts you
+railings. The clock starts at the start gate and stops at Tamarama. You have to go through each
+gate's arch, in order: go through a later one and you're told which you missed. A beam
+of light marks the next gate. Landing in the sea puts you
 back at the last gate. Your best time, its splits and a ghost of the run are kept in
 this browser.
 
@@ -47,7 +49,7 @@ this browser.
 | File | What it does |
 | --- | --- |
 | `tools/fetch-data.mjs`, `tools/area.mjs` | Download OSM features (Overpass) and Terrarium elevation tiles for the area; the local metre frame |
-| `tools/build-course.mjs` | Terrain grid (4 m) with surface classes painted from OSM, the sea shelved off the coastline, the walk routed along OSM footpaths preferring the named coastal walk and carved flat into the terrain, checkpoints at landmarks, buildings, trees and props |
+| `tools/build-course.mjs` | Terrain grid (3 m, bicubic from the ~4 m DEM) with surface classes painted from OSM, the sea shelved off the coastline, rock shelves where OSM maps rock past the waterline, coastal heath, the walk routed along OSM footpaths preferring the named coastal walk, the ground smoothed for ~40 m around it and the walk carved flat, checkpoints at landmarks, buildings, trees and props. The map runs north to take in Bondi Beach |
 | `src/course/route.ts` | The race line: a smoothed centreline, the gates, respawn points, and railings wherever the ground drops away beside the walk |
 | `src/course/physics.ts` | Rapier colliders: heightfield terrain, buildings, tree trunks, railings |
 | `src/jetpack.ts` | Thrust and energy |

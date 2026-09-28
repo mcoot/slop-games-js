@@ -33,11 +33,30 @@ export interface Sample {
 export interface Gate {
   name: string;
   index: number;
-  /** Sample the gate stands at; its plane is across the course there. */
+  /** Centreline sample nearest the gate (for ordering and respawns). */
   sample: Sample;
   /** Where the walk crosses it, on the ground. */
   pathPoint: Vec3;
+  /** The arch you have to pass through: centred on the walk, across it. */
+  arch: Arch;
 }
+
+export interface Arch {
+  x: number;
+  z: number;
+  /** Unit direction of travel through it (horizontal) and across it. */
+  tx: number;
+  tz: number;
+  rx: number;
+  rz: number;
+  halfWidth: number;
+  bottom: number;
+  top: number;
+}
+
+/** Arch size: wide enough for a line or two, low enough that you can't jet over it by accident. */
+export const ARCH_HALF_WIDTH = 9;
+export const ARCH_HEIGHT = 12;
 
 /** A stretch of cliff-top railing beside the walk: from a to b (on the ground), 1.1 m tall. */
 export interface Rail {
@@ -123,7 +142,33 @@ export function buildRoute(course: CourseData, settings: RouteSettings = default
     if (index === course.checkpoints.length - 1) i = samples.length - 1;
     const sample = samples[i]!;
     const pathPoint = index === 0 ? { x: sample.x, y: sample.y, z: sample.z } : { x, y, z };
-    return { name: cp.name, index: i, sample, pathPoint };
+    // Across the walk's own direction here (smoothed over a few points).
+    let tx = sample.tx;
+    let tz = sample.tz;
+    if (index > 0) {
+      const [ax, , az] = course.path[Math.max(cp.index - 4, 0)]!;
+      const [bx, , bz] = course.path[Math.min(cp.index + 4, course.path.length - 1)]!;
+      const len = Math.hypot(bx - ax, bz - az) || 1;
+      tx = (bx - ax) / len;
+      tz = (bz - az) / len;
+    }
+    const ground = Math.max(pathPoint.y, heightAt(course.terrain, pathPoint.x, pathPoint.z));
+    let bottom = ground;
+    for (const side of [-1, 1]) {
+      bottom = Math.min(bottom, heightAt(course.terrain, pathPoint.x - tz * ARCH_HALF_WIDTH * side, pathPoint.z + tx * ARCH_HALF_WIDTH * side));
+    }
+    const arch: Arch = {
+      x: pathPoint.x,
+      z: pathPoint.z,
+      tx,
+      tz,
+      rx: -tz,
+      rz: tx,
+      halfWidth: ARCH_HALF_WIDTH,
+      bottom: bottom - 3,
+      top: ground + ARCH_HEIGHT,
+    };
+    return { name: cp.name, index: i, sample, pathPoint, arch };
   });
 
   // Railings: along each side of the walk where the ground a few metres out is well
