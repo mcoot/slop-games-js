@@ -23,6 +23,8 @@ export interface WeaponDef {
   damage: number;
   /** Blast radius (m); 0 for no splash. */
   splashRadius: number;
+  /** Full damage within this distance of the blast (m), then a linear falloff to the edge. */
+  splashInner: number;
   /** Fraction of `damage` at the edge of the blast. */
   splashFalloff: number;
   /** Multiplier on a direct hit against someone in the air (a "midair"). */
@@ -56,6 +58,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     radius: 0.3,
     damage: 700,
     splashRadius: 7,
+    splashInner: 2,
     splashFalloff: 0.25,
     midairBonus: 1.1,
     selfDamage: 0.35,
@@ -78,6 +81,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     radius: 0.1,
     damage: 80,
     splashRadius: 0,
+    splashInner: 0,
     splashFalloff: 1,
     midairBonus: 1,
     selfDamage: 0,

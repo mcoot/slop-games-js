@@ -47,9 +47,11 @@ export function blastOn(w: WeaponDef, point: V3, target: Target, direct: boolean
     damage = w.damage;
     strength = 1;
   } else if (w.splashRadius > 0 && dist < w.splashRadius) {
-    const f = dist / w.splashRadius;
-    damage = w.damage * (1 - f * (1 - w.splashFalloff));
-    strength = 1 - f;
+    // Full damage in the core, then linear down to `splashFalloff` at the edge.
+    const inner = Math.min(w.splashInner, w.splashRadius);
+    const d = Math.max(dist - inner, 0) / (w.splashRadius - inner || 1);
+    damage = w.damage * (1 - d * (1 - w.splashFalloff));
+    strength = 1 - dist / w.splashRadius;
   } else {
     return null;
   }

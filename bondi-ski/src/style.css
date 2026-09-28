@@ -25,6 +25,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 #energy .fill.low { background: #ff6b5e; }
 #perf { position: fixed; left: 16px; bottom: 16px; white-space: pre; font: 12px/1.5 ui-monospace, monospace; text-shadow: 0 1px 2px #000; pointer-events: none; }
 #perf[hidden] { display: none; }
+#fps { position: fixed; right: 272px; top: 6px; font: 600 12px/1.5 ui-monospace, monospace; color: rgba(255,255,255,.85); text-shadow: 0 1px 2px #000; pointer-events: none; }
+#fps[hidden] { display: none; }
 #toast { position: fixed; left: 50%; top: 96px; transform: translateX(-50%); text-align: center; font: 700 18px/1.5 system-ui, sans-serif; text-shadow: 0 2px 6px rgba(0,0,0,.7); pointer-events: none; transition: opacity .5s; }
 #overlay, #loading { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(6, 24, 40, 0.5); cursor: pointer; }
 #overlay[hidden] { display: none; }
