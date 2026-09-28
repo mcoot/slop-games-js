@@ -120,7 +120,7 @@ async function main() {
   const cameraFeel = { ...defaultCameraFeel, sourceFov: 100, landingDip: true };
   const simulation = { tickRate: 66.67 };
   const race = new RaceTracker(route.gates);
-  const debug = { perf: false, ghost: true };
+  const debug = { fps: true, perf: false, ghost: true };
 
   const spawn = route.respawn(0);
   const player = new PlayerController(world, movement, spawn.position);
@@ -153,6 +153,7 @@ async function main() {
   const speedEl = document.querySelector<HTMLElement>("#speed")!;
   const energyEl = document.querySelector<HTMLElement>("#energy .fill")!;
   const perfEl = document.querySelector<HTMLElement>("#perf")!;
+  const fpsEl = document.querySelector<HTMLElement>("#fps")!;
   const toastEl = document.querySelector<HTMLElement>("#toast")!;
   const endEl = document.querySelector<HTMLElement>("#end")!;
   let toastUntil = 0;
@@ -307,6 +308,7 @@ async function main() {
       gravity: [0, 30, 0.5],
       damage: [0, 2000, 5],
       splashRadius: [0, 20, 0.25],
+      splashInner: [0, 20, 0.25],
       splashFalloff: [0, 1, 0.05],
       midairBonus: [1, 3, 0.05],
       selfDamage: [0, 1, 0.05],
@@ -325,7 +327,7 @@ async function main() {
   tuning.addGroup("Mouse", look.settings, { sensitivity: [0.1, 10, 0.01], mYaw: true, mPitch: true, invertY: true });
   tuning.addGroup("Audio", audio.settings, { master: [0, 1, 0.01], ocean: [0, 1, 0.01], wind: [0, 1, 0.01] });
   tuning.addGroup("Simulation", simulation, { tickRate: [20, 144, 1] });
-  tuning.addGroup("Debug", debug, { perf: true, ghost: true });
+  tuning.addGroup("Debug", debug, { fps: true, perf: true, ghost: true });
   tuning.gui.add({ clear: () => { clearBest(bestKey); best = null; updateBest(); } }, "clear").name("Forget my best time");
   tuning.addPersistence();
   tuning.load();
@@ -334,6 +336,7 @@ async function main() {
     loop.tickRate = simulation.tickRate;
     audio.apply();
     perfEl.hidden = !debug.perf;
+    fpsEl.hidden = !debug.fps;
     updateBest();
   };
   tuning.onChange(applyTuning);
@@ -343,6 +346,7 @@ async function main() {
   let topSpeed = 0;
   let skiing = false;
   let elapsed = 0;
+  let fpsShownAt = 0;
   let lastField = 0;
   let missedToastUntil = 0;
   let forceStartUntil = 0;
@@ -493,6 +497,11 @@ async function main() {
       const hs = player.horizontalSpeed;
       const state = jet.active ? "jetting" : skiing ? "skiing" : player.grounded ? "ground" : "air";
       speedEl.innerHTML = `${hs.toFixed(1)} m/s<small>${Math.round(hs * 3.6)} km/h · top ${topSpeed.toFixed(1)} · ${state}</small>`;
+      // Refresh a few times a second so the number is readable.
+      if (debug.fps && now - fpsShownAt > 250) {
+        fpsShownAt = now;
+        fpsEl.textContent = `${Math.round(stats.fps)} fps`;
+      }
       if (debug.perf) {
         perfEl.textContent = `${Math.round(stats.fps)} fps  avg ${stats.averageMs.toFixed(1)} ms  worst ${stats.worstMs.toFixed(1)} ms\n` +
           `tick ${loop.tickRate.toFixed(1)} Hz · mouse ${look.rawInput ? "raw" : "accelerated"} · ${renderer.info.render.calls} draws · ${Math.round(hs / SOURCE_UNIT)} u/s`;

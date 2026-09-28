@@ -98,5 +98,6 @@ describe("skiing the course", () => {
     console.log(log.join("\n"), `\ntime ${race.time.toFixed(2)} top ${top.toFixed(1)} splits ${race.splits.map((s) => s.toFixed(1))} resets ${resets}`);
     expect(race.state).toBe("finished");
     expect(resets).toBeLessThanOrEqual(2);
-  });
+    // A full-course physics sim: ~5 s on slower (cloud) CPUs, so allow more than vitest's default 5 s.
+  }, 30_000);
 });

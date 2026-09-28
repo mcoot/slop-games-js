@@ -76,6 +76,17 @@ describe("damage", () => {
     expect(blastOn(disc, { x: 9, y: 0.5, z: 0 }, target(), false, false)).toBeNull();
   });
 
+  it("splash does full damage inside the inner radius, then falls off linearly to the edge", () => {
+    const w = { ...disc, damage: 400, splashRadius: 6, splashInner: 2, splashFalloff: 0.25 };
+    const r = target().radius;
+    // `dist` is measured from the blast to the surface of their capsule.
+    const at = (dist: number) => blastOn(w, { x: dist + r, y: 1, z: 0 }, target(), false, false)!.damage;
+    expect(at(0.5)).toBe(400);
+    expect(at(1.9)).toBe(400);
+    expect(at(4)).toBe(Math.round(400 * (1 - 0.5 * 0.75)));
+    expect(at(5)).toBe(175);
+  });
+
   it("your own disc barely hurts but throws you (disc jumping)", () => {
     const own = blastOn(disc, { x: 0, y: -0.2, z: 0 }, target(), false, true)!;
     expect(own.damage).toBeLessThan(300);

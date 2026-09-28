@@ -201,6 +201,7 @@ export const OUT_OF_BOUNDS: WeaponDef = {
   radius: 0,
   damage: 0,
   splashRadius: 0,
+  splashInner: 0,
   splashFalloff: 1,
   midairBonus: 1,
   selfDamage: 1,
