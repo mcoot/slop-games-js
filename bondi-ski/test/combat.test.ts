@@ -34,6 +34,30 @@ describe("weapons", () => {
   });
 });
 
+describe("switching weapons", () => {
+  it("takes a moment before the new weapon fires", () => {
+    const f = new Fighter();
+    f.switchTo("rifle");
+    let first = -1;
+    for (let i = 0; i < 1 / DT && first < 0; i++) if (f.tickWeapons(true, DT) > 0) first = i * DT;
+    expect(first).toBeGreaterThanOrEqual(f.settings.switchTime - DT);
+    expect(first).toBeLessThan(f.settings.switchTime + 0.05);
+  });
+
+  it("reloads a weapon that's been put away for a few seconds", () => {
+    const f = new Fighter();
+    f.switchTo("rifle");
+    for (let i = 0; i < 1.5 / DT; i++) f.tickWeapons(true, DT);
+    const left = f.weapon.ammo;
+    expect(left).toBeLessThan(24);
+    f.switchTo("disc");
+    for (let i = 0; i < 2 / DT; i++) f.tickWeapons(false, DT);
+    expect(f.weapons.rifle.ammo).toBe(left);
+    for (let i = 0; i < 1.2 / DT; i++) f.tickWeapons(false, DT);
+    expect(f.weapons.rifle.ammo).toBe(24);
+  });
+});
+
 describe("damage", () => {
   const disc = WEAPONS.disc;
   it("a direct disc hit takes most of someone's health; a midair takes 770, nearly all of it", () => {

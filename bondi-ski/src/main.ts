@@ -316,7 +316,7 @@ async function main() {
     };
     tuning.addGroup("Spinfusor", WEAPONS.disc, weapon);
     tuning.addGroup("Assault rifle", WEAPONS.rifle, { ...weapon, burst: [1, 6, 1], burstInterval: [0.02, 0.3, 0.005], magazine: [0, 120, 1], reload: [0, 5, 0.1] });
-    tuning.addGroup("Health", dm.fighter.settings, { maxHealth: [100, 3000, 10], regenDelay: [0, 30, 0.5], regenRate: [0, 500, 5], respawnTime: [0, 10, 0.5] });
+    tuning.addGroup("Health & weapons", dm.fighter.settings, { maxHealth: [100, 3000, 10], regenDelay: [0, 30, 0.5], regenRate: [0, 500, 5], respawnTime: [0, 10, 0.5], switchTime: [0, 2, 0.05], stowedReload: [0, 15, 0.5] });
     const match = tuning.addGroup("Match", dm.settings, { killTarget: [1, 100, 1], resultsTime: [2, 30, 1] });
     const bots = { count: dm.settings.bots };
     match.add(bots, "count", 0, 8, 1).name("practice bots").onChange((n: number) => dm.setBots(n));

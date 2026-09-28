@@ -108,7 +108,7 @@ export class Arena {
       const wl = Math.hypot(wx, wz) || 1;
       bot.jet.tick(bot.body, jet, { x: wx / wl, y: 0, z: wz / wl }, dt);
       bot.body.tick(cmd, dt);
-      if (bot.fighter.weapon.tick(fire, dt) > 0) this.fire(bot.id, bot.fighter.weapon.def, bot.eye(), aim, bot.body.velocity);
+      if (bot.fighter.tickWeapons(fire, dt) > 0) this.fire(bot.id, bot.fighter.weapon.def, bot.eye(), aim, bot.body.velocity);
     }
   }
 

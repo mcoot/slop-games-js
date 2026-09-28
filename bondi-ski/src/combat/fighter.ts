@@ -7,9 +7,13 @@ export interface HealthSettings {
   regenRate: number;
   /** Seconds dead before respawning. */
   respawnTime: number;
+  /** Seconds after switching weapons before the new one can fire. */
+  switchTime: number;
+  /** A weapon put away for this long (s) is reloaded for you. */
+  stowedReload: number;
 }
 
-export const defaultHealth: HealthSettings = { maxHealth: 900, regenDelay: 8, regenRate: 60, respawnTime: 3 };
+export const defaultHealth: HealthSettings = { maxHealth: 900, regenDelay: 8, regenRate: 60, respawnTime: 3, switchTime: 0.4, stowedReload: 3 };
 
 /** One combatant's state: health, weapons, and whether they're alive. */
 export class Fighter {
@@ -20,6 +24,10 @@ export class Fighter {
   sinceHurt = Infinity;
   readonly weapons: Record<WeaponId, WeaponState>;
   current: WeaponId = "disc";
+  /** Seconds left of drawing the current weapon (it can't fire until then). */
+  switching = 0;
+  /** How long each weapon has been put away (s). */
+  private readonly stowed: Record<WeaponId, number> = { disc: 0, rifle: 0 };
 
   constructor(public settings: HealthSettings = defaultHealth) {
     this.health = settings.maxHealth;
@@ -29,6 +37,36 @@ export class Fighter {
 
   get weapon(): WeaponState {
     return this.weapons[this.current];
+  }
+
+  /** Put the current weapon away and draw another: it takes `switchTime` before it can fire. */
+  switchTo(id: WeaponId): boolean {
+    if (id === this.current) return false;
+    // Putting a weapon away abandons its reload; the stowed timer reloads it later.
+    const put = this.weapon;
+    put.reloading = 0;
+    put.burstLeft = 0;
+    this.stowed[this.current] = 0;
+    this.current = id;
+    this.switching = this.settings.switchTime;
+    return true;
+  }
+
+  /** Per tick, with the trigger held or not: returns how many shots the weapon in hand fires. */
+  tickWeapons(held: boolean, dt: number): number {
+    for (const [id, w] of Object.entries(this.weapons) as [WeaponId, WeaponState][]) {
+      if (id === this.current) continue;
+      // Stowed: cool down, and after a while it's reloaded for you.
+      w.wait = Math.max(w.wait - dt, 0);
+      this.stowed[id] += dt;
+      if (this.stowed[id] >= this.settings.stowedReload && w.def.magazine > 0) w.ammo = w.def.magazine;
+    }
+    if (this.switching > 0) {
+      this.switching = Math.max(this.switching - dt, 0);
+      this.weapon.tick(false, dt);
+      return 0;
+    }
+    return this.weapon.tick(held, dt);
   }
 
   /** Take damage; returns true if this killed them. */
@@ -61,6 +99,7 @@ export class Fighter {
     this.alive = true;
     this.health = this.settings.maxHealth;
     this.sinceHurt = Infinity;
+    this.switching = 0;
     for (const w of Object.values(this.weapons)) w.reset();
   }
 }

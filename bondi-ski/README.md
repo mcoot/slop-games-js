@@ -20,6 +20,9 @@ Ascend (every number is in the Tuning panel):
 | Rate | one disc every 1.1 s | three-round bursts (0.075 s apart), 0.3 s between bursts; 24-round magazine, 1.7 s reload |
 | Self | 35% of the damage, full knockback: disc jumps | none |
 
+Switching weapons takes 0.4 s before the new one can fire, and a weapon you've put away
+reloads itself after 3 s.
+
 900 health, back 60 hp/s after 8 s without damage; 3 s to respawn, at a spawn point
 along the course away from everyone. First to 15 kills wins; the scores show for 10 s,
 then a new match starts. Leaving the arena (420 m from the middle) hurts; the sea kills.

@@ -161,21 +161,16 @@ export class Deathmatch {
     this.showScores = input.scores;
     if (input.weapon && f.alive) {
       const next = input.weapon === "swap" ? (f.current === "disc" ? "rifle" : "disc") : input.weapon;
-      if (next !== f.current) {
-        f.current = next;
-        this.viewmodel.show(next);
-      }
+      if (f.switchTo(next)) this.viewmodel.show(next);
     }
-    if (input.reload) f.weapon.startReload();
+    if (input.reload && f.switching === 0) f.weapon.startReload();
     const matchOver = this.arena.match.over;
-    const shots = f.alive && !matchOver ? f.weapon.tick(input.fire, dt) : 0;
+    const shots = f.alive ? f.tickWeapons(input.fire && !matchOver, dt) : 0;
     for (let i = 0; i < shots; i++) {
       const p = this.ctx.player;
       const eye = { x: p.feet.x, y: p.feet.y + p.eyeHeight, z: p.feet.z };
       this.arena.fire(this.me.id, f.weapon.def, eye, aimOf(this.ctx.look.yaw, this.ctx.look.pitch), p.velocity);
     }
-    // Keep the other weapon cooling down / reloading in the background.
-    for (const w of Object.values(f.weapons)) if (w !== f.weapon) w.tick(false, dt);
 
     this.arena.remoteTargets = this.remoteTargets();
     this.arena.stepBots(dt, (bot) =>
@@ -226,7 +221,7 @@ export class Deathmatch {
     const cam = this.ctx.camera;
     this.projectileViews.update(this.arena.projectiles.list, alpha, dt);
     this.explosions.update(dt);
-    this.viewmodel.update(dt, this.fighter.alive, this.ctx.player.horizontalSpeed);
+    this.viewmodel.update(dt, this.fighter.alive, this.ctx.player.horizontalSpeed, this.fighter.switching / Math.max(this.fighter.settings.switchTime, 0.01));
     // Bots and remote players.
     const labels: LabelItem[] = [];
     const head = this.ctx.movement.standHeight + 0.35;
@@ -448,7 +443,8 @@ export class Deathmatch {
     el.hp.innerHTML = `<div class="fill" style="width:${Math.round(frac * 100)}%"></div><span>${Math.ceil(f.health)}</span>`;
     el.hp.classList.toggle("low", frac < 0.3);
     const w = f.weapon;
-    const ammo = w.def.magazine > 0 ? (w.reloading > 0 ? "reloading…" : `${w.ammo} / ${w.def.magazine}`) : w.ready ? "ready" : "…";
+    const ammo =
+      f.switching > 0 ? "drawing…" : w.def.magazine > 0 ? (w.reloading > 0 ? "reloading…" : `${w.ammo} / ${w.def.magazine}`) : w.ready ? "ready" : "…";
     el.weapon.innerHTML = `<b>${f.current === "disc" ? "1" : "2"}</b> ${w.def.name}<small>${ammo}</small>`;
 
     this.hitFlash = Math.max(this.hitFlash - dt * 6, 0);

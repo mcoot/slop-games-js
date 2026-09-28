@@ -186,13 +186,15 @@ export class Viewmodel {
     this.kick = Math.min(this.kick + strength, 1);
   }
 
-  update(dt: number, visible: boolean, speed: number): void {
+  /** `drawing` is 1 just after switching, falling to 0 when the weapon is ready: it rises into view. */
+  update(dt: number, visible: boolean, speed: number, drawing = 0): void {
     this.root.visible = visible;
     this.kick *= Math.exp(-dt * 12);
     this.sway += dt * Math.min(speed, 12) * 0.9;
     const bob = Math.sin(this.sway) * 0.006 * Math.min(speed / 6, 1);
-    this.root.position.set(0.24, -0.21 + bob, -0.62 + this.kick * 0.08);
-    this.root.rotation.x = this.kick * 0.2;
+    const lower = drawing * drawing * 0.25;
+    this.root.position.set(0.24, -0.21 + bob - lower, -0.62 + this.kick * 0.08);
+    this.root.rotation.x = this.kick * 0.2 - drawing * 0.6;
   }
 
   /** Draw over what's already rendered. */
