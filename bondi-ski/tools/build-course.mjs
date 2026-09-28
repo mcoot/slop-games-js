@@ -38,19 +38,54 @@ const osm = JSON.parse(readFileSync(join(root, "data", "osm.json"), "utf8"));
 
 // ---------------------------------------------------------------- elevation
 
-const tiles = new Map();
-for (const f of readdirSync(join(root, "data", "terrarium"))) {
-  const [z, x, y] = f.replace(".png", "").split("-").map(Number);
-  if (z === TERRAIN_ZOOM) tiles.set(`${x}/${y}`, PNG.sync.read(readFileSync(join(root, "data", "terrarium", f))));
+// All the tiles as one mosaic, so pixels can be read (and cleaned) across tile edges.
+const tileFiles = readdirSync(join(root, "data", "terrarium"))
+  .map((f) => f.replace(".png", "").split("-").map(Number))
+  .filter(([z]) => z === TERRAIN_ZOOM);
+const tx0 = Math.min(...tileFiles.map(([, x]) => x));
+const ty0 = Math.min(...tileFiles.map(([, , y]) => y));
+const mw = (Math.max(...tileFiles.map(([, x]) => x)) - tx0 + 1) * 256;
+const mh = (Math.max(...tileFiles.map(([, , y]) => y)) - ty0 + 1) * 256;
+const mosaic = new Float32Array(mw * mh).fill(NaN);
+for (const [z, x, y] of tileFiles) {
+  const png = PNG.sync.read(readFileSync(join(root, "data", "terrarium", `${z}-${x}-${y}.png`)));
+  for (let py = 0; py < 256; py++) {
+    for (let px = 0; px < 256; px++) {
+      const i = (py * 256 + px) * 4;
+      mosaic[((y - ty0) * 256 + py) * mw + (x - tx0) * 256 + px] = png.data[i] * 256 + png.data[i + 1] + png.data[i + 2] / 256 - 32768;
+    }
+  }
+}
+
+// The DEM has a few bad pixels: pits hundreds of metres deep (and the odd spike), which
+// smooth interpolation turns into craters and towers. Replace any pixel far from the
+// median of its neighbours with that median, a few times over for clustered ones.
+{
+  let fixed = 0;
+  for (let pass = 0; pass < 4; pass++) {
+    const src = Float32Array.from(mosaic);
+    for (let y = 1; y < mh - 1; y++) {
+      for (let x = 1; x < mw - 1; x++) {
+        const n = [];
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) n.push(src[(y + dy) * mw + x + dx]);
+        n.sort((a, b) => a - b);
+        const median = (n[3] + n[4]) / 2;
+        const v = src[y * mw + x];
+        // Real cliffs here drop ~30 m over several pixels, never 15 m against all eight neighbours' middle.
+        if (Math.abs(v - median) > 15 || v < -60) {
+          mosaic[y * mw + x] = median;
+          fixed++;
+        }
+      }
+    }
+  }
+  console.log(`DEM: replaced ${fixed} bad pixels`);
 }
 
 function demPixel(px, py) {
-  const tx = Math.floor(px / 256);
-  const ty = Math.floor(py / 256);
-  const t = tiles.get(`${tx}/${ty}`);
-  if (!t) throw new Error(`No terrain tile ${tx}/${ty}; run pnpm fetch-data`);
-  const i = ((py - ty * 256) * 256 + (px - tx * 256)) * 4;
-  return t.data[i] * 256 + t.data[i + 1] + t.data[i + 2] / 256 - 32768;
+  const v = mosaic[(py - ty0 * 256) * mw + (px - tx0 * 256)];
+  if (v === undefined || Number.isNaN(v)) throw new Error(`No terrain at pixel ${px},${py}; run pnpm fetch-data`);
+  return v;
 }
 
 /** Catmull-Rom weights for the four samples around a fraction t. */
@@ -198,11 +233,33 @@ for (let r = 0; r < rows; r++) {
       }
     }
     const i = r * cols + c;
-    if (side < 0) {
+    seaDistance[i] = side < 0 ? best : -best;
+  }
+}
+// Tidy the waterline: a lone land cell among sea (or sea among land), where the coastline
+// zigzags across the grid, would stand up as a cliff-high pillar (or a pit). Go with the
+// neighbours.
+{
+  const isSea = (i) => seaDistance[i] > 0;
+  for (let pass = 0; pass < 2; pass++) {
+    const flip = [];
+    for (let r = 1; r < rows - 1; r++) {
+      for (let c = 1; c < cols - 1; c++) {
+        const i = r * cols + c;
+        let sea = 0;
+        for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if ((dr || dc) && isSea(i + dr * cols + dc)) sea++;
+        if (isSea(i) ? sea <= 2 : sea >= 6) flip.push(i);
+      }
+    }
+    for (const i of flip) seaDistance[i] = isSea(i) ? -0.01 : 0.01;
+  }
+  for (let i = 0; i < cols * rows; i++) {
+    if (isSea(i)) {
       surface[i] = S.sea;
-      seaDistance[i] = best;
       // Offshore the DEM is noisy (holes and spikes), so shelve smoothly from the coast.
-      heights[i] = -0.6 - Math.min(best * 0.12, 11);
+      heights[i] = -0.6 - Math.min(seaDistance[i] * 0.12, 11);
+    } else if (seaDistance[i] > -3 && heights[i] < 0.6) {
+      heights[i] = 0.6;
     }
   }
 }

@@ -1,5 +1,7 @@
 import * as THREE from "three";
 
+const TRAIL_POINTS = 90;
+
 /**
  * Another racer drawn in the world: your best run's ghost for now, and later remote
  * players fed from the network. A translucent figure with a fading trail.
@@ -20,7 +22,10 @@ export class RacerView {
     visor.position.set(0, height - 0.35, -0.25);
     this.root.add(this.body, visor);
     if (name !== undefined) this.setName(name, colour, height);
-    const trailGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    // A fixed-size buffer, drawn up to however many points the trail has so far.
+    const trailGeom = new THREE.BufferGeometry();
+    trailGeom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(TRAIL_POINTS * 3), 3));
+    trailGeom.setDrawRange(0, 0);
     this.trail = new THREE.Line(trailGeom, new THREE.LineBasicMaterial({ color: colour, transparent: true, opacity: 0.5 }));
     this.trail.frustumCulled = false;
   }
@@ -82,12 +87,16 @@ export class RacerView {
     if (!last || last.distanceToSquared(p) > 0.5) {
       if (last && last.distanceToSquared(p) > 400) this.trailPoints.length = 0; // teleported
       this.trailPoints.push(p);
-      if (this.trailPoints.length > 90) this.trailPoints.shift();
-      this.trail.geometry.setFromPoints(this.trailPoints.length > 1 ? this.trailPoints : [p, p]);
+      if (this.trailPoints.length > TRAIL_POINTS) this.trailPoints.shift();
+      const attr = this.trail.geometry.getAttribute("position") as THREE.BufferAttribute;
+      this.trailPoints.forEach((q, i) => attr.setXYZ(i, q.x, q.y, q.z));
+      attr.needsUpdate = true;
+      this.trail.geometry.setDrawRange(0, this.trailPoints.length);
     }
   }
 
   clearTrail(): void {
     this.trailPoints.length = 0;
+    this.trail.geometry.setDrawRange(0, 0);
   }
 }

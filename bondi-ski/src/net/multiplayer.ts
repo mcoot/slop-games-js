@@ -128,17 +128,18 @@ export class Multiplayer {
     if (!this.session || !this.racing) return "";
     return this.session
       .standings(me)
-      .map((r, i) => `<tr${r.self ? ' class="self"' : ""}><td>${i + 1}</td><td style="color:${r.colour}">${escape(r.name)}</td><td>${r.finish !== null ? formatTime(r.finish) : "racing…"}</td></tr>`)
+      .map((r, i) => `<tr${r.self ? ' class="self"' : ""}><td>${r.inRace ? i + 1 : ""}</td><td style="color:${r.colour}">${escape(r.name)}</td><td>${!r.inRace ? "left" : r.finish !== null ? formatTime(r.finish) : "racing…"}</td></tr>`)
       .join("");
   }
 
   private renderStandings(list: Standing[]): void {
     this.standingsEl.hidden = false;
-    const head = `<div class="room">Room ${this.room} · ${list.length} here${this.racing ? "" : " · Enter to race"}</div>`;
+    const between = !this.racing || this.session?.phase === "done";
+    const head = `<div class="room">Room ${this.room} · ${list.length} here${between ? " · Enter to race" : ""}</div>`;
     const rows = list
       .map((r, i) => {
-        const status = r.finish !== null ? formatTime(r.finish) : this.racing ? `gate ${r.gates}` : "";
-        return `<div class="row${r.self ? " self" : ""}"><span class="pos">${this.racing ? i + 1 : "·"}</span><span class="name" style="color:${r.colour}">${escape(r.name)}</span><span class="status">${status}</span></div>`;
+        const status = !r.inRace ? "left" : r.finish !== null ? formatTime(r.finish) : this.racing ? `gate ${r.gates}` : "";
+        return `<div class="row${r.self ? " self" : ""}${r.inRace ? "" : " out"}"><span class="pos">${this.racing && r.inRace ? i + 1 : "·"}</span><span class="name" style="color:${r.colour}">${escape(r.name)}</span><span class="status">${status}</span></div>`;
       })
       .join("");
     this.standingsEl.innerHTML = head + (list.length > 1 || this.racing ? rows : `<div class="hint">Share the link to race: ${escape(this.inviteLink())}</div>`);

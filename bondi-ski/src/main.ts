@@ -53,7 +53,7 @@ async function main() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const course = await loadCourse("course/", COURSE);
   document.querySelector(".credits")!.textContent =
@@ -163,6 +163,7 @@ async function main() {
     });
     endEl.querySelector(".splits")!.innerHTML = rows.join("");
     endEl.querySelector(".field")!.innerHTML = mp.resultsHtml(me());
+    endEl.querySelector(".again")!.textContent = mp.session ? "In a race room: Enter starts a race" : "";
     endEl.hidden = false;
   };
   const me = () => ({ x: player.feet.x, y: player.feet.y, z: player.feet.z, yaw: look.yaw, time: race.time, next: race.next });
@@ -195,6 +196,7 @@ async function main() {
     endEl.querySelector(".time")!.innerHTML = `${formatTime(time)}<small>Race finished</small>`;
     endEl.querySelector(".splits")!.innerHTML = "";
     endEl.querySelector(".field")!.innerHTML = mp.resultsHtml(me());
+    endEl.querySelector(".again")!.textContent = "Enter: race again once everyone's in · R: leave the race";
     endEl.hidden = false;
   };
 
@@ -288,6 +290,7 @@ async function main() {
   let elapsed = 0;
   let lastField = 0;
   let missedToastUntil = 0;
+  let forceStartUntil = 0;
   const loop = new FixedLoop({
     tickRate: simulation.tickRate,
     tick(dt) {
@@ -299,7 +302,13 @@ async function main() {
         updateBest();
       }
       if (input.consumePresses("start") > 0 && mp.session && mp.session.phase !== "countdown" && mp.session.phase !== "racing") {
-        mp.session.startRace();
+        // Don't yank people off the course: wait for them, unless you press Enter twice.
+        const force = performance.now() < forceStartUntil;
+        const busy = mp.session.startRace(force);
+        if (busy.length > 0) {
+          forceStartUntil = performance.now() + 3000;
+          toast(`Waiting for ${busy.join(", ")} to finish · Enter again to start anyway`, 3);
+        }
       }
       const axis = (a: Action, b: Action) => (input.isDown(a) ? 1 : 0) - (input.isDown(b) ? 1 : 0);
       const from = { x: player.feet.x, y: player.feet.y, z: player.feet.z };

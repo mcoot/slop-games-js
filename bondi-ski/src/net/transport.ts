@@ -130,16 +130,32 @@ export function localTransport(room: string): Transport {
   });
 }
 
-/** A room entirely in memory: every bus delivers to every other. For tests. */
+/**
+ * A room entirely in memory: every bus delivers to every other. For tests. `hold()`
+ * queues messages (as if in flight) until `flush()`.
+ */
 export function memoryHub() {
   const listeners = new Set<(d: unknown) => void>();
+  let held: (() => void)[] | null = null;
   return {
+    hold() {
+      held = [];
+    },
+    flush() {
+      const q = held ?? [];
+      held = null;
+      for (const deliver of q) deliver();
+    },
     bus(): Bus {
       let mine: ((d: unknown) => void) | null = null;
       return {
         post: (d) => {
           const copy = JSON.parse(JSON.stringify(d)) as unknown;
-          for (const l of listeners) if (l !== mine) l(copy);
+          const deliver = () => {
+            for (const l of listeners) if (l !== mine) l(copy);
+          };
+          if (held) held.push(deliver);
+          else deliver();
         },
         listen: (fn) => {
           mine = fn;

@@ -21,9 +21,13 @@ function room(n: number) {
     }, (x) => -x, now);
     return s;
   });
+  // Step the clock and timers together, so heartbeats see time pass as it would.
   const advance = (ms: number) => {
-    clock += ms;
-    vi.advanceTimersByTime(ms);
+    for (let t = 0; t < ms; t += 50) {
+      const step = Math.min(50, ms - t);
+      clock += step;
+      vi.advanceTimersByTime(step);
+    }
   };
   return { racers, log, advance, setClock: (ms: number) => (clock = ms) };
 }
@@ -78,5 +82,56 @@ describe("race session", () => {
     racers[1]!.transport.leave();
     advance(10);
     expect(racers[0]!.peers.size).toBe(0);
+  });
+});
+
+describe("between races", () => {
+  it("settles on one race when two people start at once", () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const now = () => clock;
+    const hub = memoryHub();
+    const mk = (name: string) =>
+      new RaceSession(new BusTransport(hub.bus(), now), name, { countdown() {}, go() {}, peersChanged() {} }, () => 0, now);
+    const a = mk("a");
+    const b = mk("b");
+    hub.hold();
+    a.startRace();
+    b.startRace();
+    expect(a.race).not.toBe(b.race);
+    hub.flush();
+    expect(a.race).toBe(b.race);
+    expect(a.phase).toBe("countdown");
+    expect(b.phase).toBe("countdown");
+  });
+
+  it("waits for everyone still out on the course before starting another race", () => {
+    const { racers, advance } = room(2);
+    const [a, b] = racers as [RaceSession, RaceSession];
+    a.startRace();
+    advance(5000);
+    for (const r of racers) r.tick({ x: 0, y: 0, z: 0, yaw: 0, time: 1, next: 1 });
+    a.gate(4, 50, true);
+    // a has finished; b hasn't: a can't start a new race yet...
+    expect(a.startRace()).toEqual(["racer1"]);
+    expect(b.phase).toBe("racing");
+    // ...until b finishes, or a insists.
+    b.gate(4, 55, true);
+    expect(a.startRace()).toEqual([]);
+    expect(b.phase).toBe("countdown");
+  });
+
+  it("keeps someone who left the race on the board, at the bottom", () => {
+    const { racers, advance } = room(2);
+    const [a, b] = racers as [RaceSession, RaceSession];
+    a.startRace();
+    advance(5000);
+    b.quitRace();
+    b.tick({ x: 0, y: 0, z: 0, yaw: 0, time: 0, next: 0 });
+    const board = a.standings({ x: 0, z: 0, next: 1 });
+    expect(board.map((r) => [r.name, r.inRace])).toEqual([
+      ["racer0", true],
+      ["racer1", false],
+    ]);
   });
 });

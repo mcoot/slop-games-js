@@ -37,6 +37,8 @@ export interface Standing {
   name: string;
   colour: string;
   self: boolean;
+  /** In the current race (between races, everyone is). */
+  inRace: boolean;
   /** Finish time, or null while still racing. */
   finish: number | null;
   /** Gates passed. */
@@ -55,6 +57,7 @@ export interface SessionEvents {
 export const SEND_INTERVAL_MS = 50;
 export const INTERPOLATION_DELAY_MS = 120;
 const COUNTDOWN_SECONDS = 4;
+const UNNAMED = "…";
 const COLOURS = ["#ff6b5e", "#ffcf3d", "#3ddc84", "#b18cff", "#ff8fd8", "#6fd3ff", "#ffa94d", "#e6f36b"];
 
 export class RaceSession {
@@ -77,18 +80,19 @@ export class RaceSession {
     private readonly now: () => number = () => performance.now(),
   ) {
     const join = (id: string) => {
-      this.peers.set(id, { id, name: "…", colour: colourFor(id), snapshots: [], race: "", time: 0, next: 0, finish: null });
+      this.peers.set(id, { id, name: UNNAMED, colour: colourFor(id), snapshots: [], race: "", time: 0, next: 0, finish: null });
       this.hello(id);
       transport.send({ t: "ping", at: this.now() }, id);
       events.peersChanged();
     };
+    // Listen before saying hello: replies can come straight back.
+    transport.onMessage((from, m) => this.receive(from, m));
     transport.onPeerJoin(join);
     for (const id of transport.peerIds()) join(id);
     transport.onPeerLeave((id) => {
       this.peers.delete(id);
       events.peersChanged();
     });
-    transport.onMessage((from, m) => this.receive(from, m));
   }
 
   get selfId(): string {
@@ -104,11 +108,25 @@ export class RaceSession {
     this.hello();
   }
 
-  /** Start a race for everyone in the room. */
-  startRace(): void {
+  /**
+   * Start a race for everyone in the room. Returns the names of anyone still out on the
+   * course in the current race (and starts nothing), unless `force`.
+   */
+  startRace(force = false): string[] {
+    const busy = this.stillRacing();
+    if (busy.length > 0 && !force) return busy;
     const race = randomId(6);
     this.transport.send({ t: "countdown", race, seconds: COUNTDOWN_SECONDS });
     this.beginCountdown(race, COUNTDOWN_SECONDS * 1000);
+    return [];
+  }
+
+  /** Who's in the current race and hasn't finished (not counting me, if I'm between races). */
+  stillRacing(): string[] {
+    if (!this.race) return [];
+    const names = [...this.peers.values()].filter((p) => p.race === this.race && p.finish === null).map((p) => p.name);
+    if (this.phase === "racing" || this.phase === "countdown") names.unshift(this.name);
+    return names;
   }
 
   /** Seconds left in the countdown (0 once racing). */
@@ -178,22 +196,25 @@ export class RaceSession {
   /** Everyone in the current race (or everyone, between races), best first. */
   standings(me: { x: number; z: number; next: number }): Standing[] {
     const list: Standing[] = [
-      { id: this.selfId, name: this.name, colour: this.colour, self: true, finish: this.finish, gates: Math.max(me.next - 1, 0), progress: this.progressOf(me.x, me.z) },
+      { id: this.selfId, name: this.name, colour: this.colour, self: true, inRace: true, finish: this.finish, gates: Math.max(me.next - 1, 0), progress: this.progressOf(me.x, me.z) },
     ];
     for (const p of this.peers.values()) {
-      if (this.race && p.race !== this.race) continue;
       const last = p.snapshots.at(-1);
+      const inRace = !this.race || p.race === this.race;
       list.push({
         id: p.id,
         name: p.name,
         colour: p.colour,
         self: false,
-        finish: p.finish,
+        inRace,
+        finish: inRace ? p.finish : null,
         gates: Math.max(p.next - 1, 0),
         progress: last ? this.progressOf(last.x, last.z) : 0,
       });
     }
     return list.sort((a, b) => {
+      // Anyone who's left the race goes to the bottom.
+      if (a.inRace !== b.inRace) return a.inRace ? -1 : 1;
       if (a.finish !== null || b.finish !== null) return (a.finish ?? Infinity) - (b.finish ?? Infinity);
       return b.gates - a.gates || b.progress - a.progress;
     });
@@ -225,12 +246,20 @@ export class RaceSession {
         return;
       case "hello":
         if (peer) {
+          // The first time we hear from someone, tell them who we are too: if they
+          // joined just as we did, our first hello may have beaten their listener.
+          const first = peer.name === UNNAMED;
           peer.name = m.name.slice(0, 24) || "Skier";
+          if (first) this.hello(from);
           peer.colour = /^#[0-9a-f]{6}$/i.test(m.colour) ? m.colour : peer.colour;
           this.events.peersChanged();
         }
         return;
       case "countdown": {
+        if (m.race === this.race) return;
+        // Two people started a race at once: everyone settles on the same one (the
+        // smaller id), so the room doesn't split into two races.
+        if (this.phase === "countdown" && this.race < m.race) return;
         // Allow for the message's trip here (half a round trip), so we go together.
         const late = (this.rtt.get(from) ?? 0) / 2;
         this.beginCountdown(m.race, Math.max(m.seconds * 1000 - late, 0));

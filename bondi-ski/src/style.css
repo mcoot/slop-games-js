@@ -71,3 +71,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 #end .field .self { background: rgba(255,255,255,.1); }
 #sound { margin: 0 0 16px 8px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(255,255,255,.15); color: var(--ink); font: 700 13px/1.4 system-ui, sans-serif; cursor: pointer; vertical-align: top; }
 #sound[aria-pressed="true"] { background: rgba(255,107,94,.35); }
+#standings .row.out { opacity: .5; }
+#end .again { margin: 0 0 12px; font-size: 13px; opacity: .85; }
+#end .again:empty { display: none; }

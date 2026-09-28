@@ -25,6 +25,24 @@ describe("course data", () => {
     const [x, , z] = course.path[course.checkpoints[1]!.index]!;
     expect(heightAt(course.terrain, x, z)).toBeGreaterThan(15);
   });
+  it("has no spikes or pits in the terrain (bad DEM pixels are cleaned out)", () => {
+    const t = course.terrain;
+    let worst = 0;
+    for (let r = 2; r < t.rows - 2; r++) {
+      for (let c = 2; c < t.cols - 2; c++) {
+        const n: number[] = [];
+        for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) if (dr || dc) n.push(t.heights[(r + dr) * t.cols + c + dc]!);
+        n.sort((a, b) => a - b);
+        worst = Math.max(worst, Math.abs(t.heights[r * t.cols + c]! - n[12]!));
+      }
+    }
+    // Cliff edges at the waterline differ from their neighbourhood by up to ~15 m; the
+    // bad pixels were hundreds.
+    expect(worst).toBeLessThan(20);
+    expect(t.heights.reduce((a, b) => Math.min(a, b))).toBeGreaterThan(-15);
+    expect(t.heights.reduce((a, b) => Math.max(a, b))).toBeLessThan(110);
+  });
+
   it("gives buildings upward roofs", () => {
     const { positions, indices, roofStart } = buildingGeometry(course);
     const a = new THREE.Vector3();

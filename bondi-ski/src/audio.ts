@@ -16,7 +16,7 @@ export interface CoastAudioSettings {
  * your speed, a hiss while you ski, the jetpack's roar, and chimes for gates and the finish.
  */
 export class CoastAudio {
-  readonly settings: CoastAudioSettings = { master: 0.8, ocean: 0.7, wind: 0.6 };
+  readonly settings: CoastAudioSettings = { master: 0.7, ocean: 0.3, wind: 0.25 };
   private engine: AudioEngine | null = null;
   private ocean: AmbienceBed | null = null;
   private windGain: GainNode | null = null;
@@ -33,7 +33,7 @@ export class CoastAudio {
   private start(): void {
     const e = (this.engine = new AudioEngine());
     // Surf: deep rumble with a slow swell and a band of hiss for the white water.
-    this.ocean = new AmbienceBed(e, { rumbleHz: 320, rumbleGain: 0.9, murmurHz: 1400, murmurGain: 0.12, humHz: 0, humGain: 0 });
+    this.ocean = new AmbienceBed(e, { rumbleHz: 260, rumbleGain: 0.5, murmurHz: 1100, murmurGain: 0.05, humHz: 0, humGain: 0 });
     this.ocean.setLevel(this.settings.ocean, 2);
 
     const ctx = e.ctx;
@@ -105,10 +105,11 @@ export class CoastAudio {
     if (!e || !this.windGain || !this.windFilter || !this.hissGain || !this.jetGain) return;
     const t = e.ctx.currentTime;
     const w = Math.min(speed / 40, 1);
-    this.windGain.gain.setTargetAtTime(w * w * 0.5 * this.settings.wind, t, 0.15);
-    this.windFilter.frequency.setTargetAtTime(300 + w * 1500, t, 0.2);
-    this.hissGain.gain.setTargetAtTime(skiing ? 0.04 + w * 0.12 : 0, t, 0.06);
-    this.jetGain.gain.setTargetAtTime(jetting ? 1.4 : 0, t, 0.05);
+    // Only really there at speed.
+    this.windGain.gain.setTargetAtTime(w * w * w * 0.35 * this.settings.wind, t, 0.15);
+    this.windFilter.frequency.setTargetAtTime(250 + w * 900, t, 0.2);
+    this.hissGain.gain.setTargetAtTime(skiing ? 0.02 + w * 0.06 : 0, t, 0.06);
+    this.jetGain.gain.setTargetAtTime(jetting ? 0.9 : 0, t, 0.05);
   }
 
   gate(finish: boolean): void {
