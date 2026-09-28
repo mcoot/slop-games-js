@@ -74,11 +74,14 @@ export class FpsCameraRig {
       this.stepOffset = 0;
     }
 
-    // Landing dip: a critically damped spring back to zero.
-    const k = 180;
-    const c = 2 * Math.sqrt(k);
-    this.dipVelocity += (-k * this.dip - c * this.dipVelocity) * frameDt;
-    this.dip += this.dipVelocity * frameDt;
+    // Landing dip: a critically damped spring back to zero, stepped with its exact
+    // solution. Integrating it step by step blew up on long frames (a hitch, or a slow
+    // software-rendered GPU) and flung the camera kilometres below the map.
+    const w = Math.sqrt(180);
+    const decay = Math.exp(-w * frameDt);
+    const b = this.dipVelocity + w * this.dip;
+    this.dipVelocity = (this.dipVelocity - w * b * frameDt) * decay;
+    this.dip = (this.dip + b * frameDt) * decay;
 
     let bob = 0;
     if (s.headBob > 0 && player.grounded) {
