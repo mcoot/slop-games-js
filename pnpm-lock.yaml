@@ -24,6 +24,37 @@ importers:
         specifier: ^5.0.2
         version: 5.0.2(@types/node@22.20.4)(vite@8.3.1(@types/node@22.20.4))
 
+  bondi-ski:
+    dependencies:
+      '@dimforge/rapier3d-compat':
+        specifier: ^0.21.0
+        version: 0.21.0
+      '@slop/audio':
+        specifier: workspace:*
+        version: link:../packages/audio
+      '@slop/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@slop/fps-controller':
+        specifier: workspace:*
+        version: link:../packages/fps-controller
+      '@slop/input':
+        specifier: workspace:*
+        version: link:../packages/input
+      '@slop/physics':
+        specifier: workspace:*
+        version: link:../packages/physics
+      '@slop/tuning':
+        specifier: workspace:*
+        version: link:../packages/tuning
+      three:
+        specifier: ^0.186.1
+        version: 0.186.1
+    devDependencies:
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
+
   packages/ai:
     dependencies:
       '@dimforge/rapier3d-compat':
@@ -458,6 +489,10 @@ packages:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
 
+  pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
+
   postcss@8.5.28:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
     engines: {node: ^10 || ^12 || >=14}
@@ -794,6 +829,8 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@4.0.7: {}
+
+  pngjs@7.0.0: {}
 
   postcss@8.5.28:
     dependencies:

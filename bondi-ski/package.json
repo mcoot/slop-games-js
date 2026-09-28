@@ -1,0 +1,27 @@
+{
+  "name": "@slop/bondi-ski",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "fetch-data": "node tools/fetch-data.mjs",
+    "build-course": "node tools/build-course.mjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "@slop/audio": "workspace:*",
+    "@slop/core": "workspace:*",
+    "@slop/fps-controller": "workspace:*",
+    "@slop/input": "workspace:*",
+    "@slop/physics": "workspace:*",
+    "@slop/tuning": "workspace:*",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0"
+  }
+}

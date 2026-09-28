@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bondi Ski</title>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="crosshair"></div>
+    <div id="timer"><span class="time">0:00.000</span><span class="delta"></span></div>
+    <div id="stage"></div>
+    <div id="best"></div>
+    <div id="speed"></div>
+    <div id="energy"><div class="fill"></div></div>
+    <div id="perf" hidden></div>
+    <div id="toast"></div>
+    <div id="resume" hidden>Click to resume</div>
+    <div id="end" hidden>
+      <div class="card">
+        <h1>Tamarama!</h1>
+        <p class="time"></p>
+        <table class="splits"></table>
+        <span class="play">R to go again</span>
+      </div>
+    </div>
+    <div id="overlay">
+      <div class="card">
+        <h1>Bondi Ski</h1>
+        <p class="sub">Icebergs to Tamarama, the Bondi to Coogee coastal walk</p>
+        <p>Ski the real clifftops, Tribes style: hold Space and there's no friction, so every downhill is speed
+          and every crest is a launch. Jet up the climbs, keep your energy for when it counts, and hit every
+          gate to Tamarama Beach. Mind the edge: the sea sends you back a gate.</p>
+        <span class="play">Click to play</span>
+        <dl>
+          <dt>WASD</dt><dd>Run; while skiing or flying, steer</dd>
+          <dt>Mouse</dt><dd>Look</dd>
+          <dt>Space</dt><dd>Tap to jump, hold to ski</dd>
+          <dt>Right mouse / Shift</dt><dd>Jetpack (uses energy, recharges when off)</dd>
+          <dt>C / Ctrl</dt><dd>Crouch</dd>
+          <dt>R</dt><dd>Restart the run</dd>
+          <dt>F</dt><dd>Back to the last gate</dd>
+          <dt>G</dt><dd>Show or hide your best run's ghost</dd>
+          <dt>Esc</dt><dd>Release mouse · tuning panel top-right</dd>
+        </dl>
+        <p class="credits"></p>
+      </div>
+    </div>
+    <div id="loading">Loading the coast…</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

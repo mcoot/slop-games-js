@@ -5,6 +5,9 @@
     "tools/*.ts",
     "tokyo-station-chase/games/*/src",
     "tokyo-station-chase/games/*/test",
-    "tokyo-station-chase/games/*/vite.config.ts"
+    "tokyo-station-chase/games/*/vite.config.ts",
+    "bondi-ski/src",
+    "bondi-ski/test",
+    "bondi-ski/vite.config.ts"
   ]
 }

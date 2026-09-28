@@ -5,5 +5,12 @@
     "description": "First-person chase through Tokyo Station: collect yen, buy a Shinkansen ticket and make the train before the salaryman catches you.",
     "dir": "tokyo-station-chase",
     "dist": "games/tokyo-station/dist"
+  },
+  {
+    "slug": "bondi-ski",
+    "title": "Bondi Ski",
+    "description": "Tribes-style skiing and jetpacks along the real Bondi to Coogee coastal walk, Icebergs to Tamarama, against the clock and your own ghost.",
+    "dir": "bondi-ski",
+    "dist": "dist"
   }
 ]

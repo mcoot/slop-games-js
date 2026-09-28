@@ -2,3 +2,4 @@ packages:
   - packages/*
   - tokyo-station-chase
   - tokyo-station-chase/games/*
+  - bondi-ski
