@@ -11,7 +11,7 @@ import {
   type MoveCommand,
   type MovementSettings,
 } from "@slop/fps-controller";
-import { TuningPanel } from "@slop/tuning";
+import { TuningPanel, type FieldSpec } from "@slop/tuning";
 import { inSea, loadCourse, terrainNormal } from "./course/data";
 import { buildRoute, defaultRoute } from "./course/route";
 import { buildCoursePhysics } from "./course/physics";
@@ -25,9 +25,32 @@ import { createWater } from "./view/water";
 import { RacerView } from "./view/racer";
 import { CoastAudio } from "./audio";
 import { Multiplayer } from "./net/multiplayer";
+import { Deathmatch } from "./dm/deathmatch";
+import { WEAPONS, type WeaponDef } from "./combat/weapons";
+
+/** Deathmatch by default; the time trial and races with `?mode=race`. */
+const MODE: "dm" | "race" = new URLSearchParams(location.search).get("mode") === "race" ? "race" : "dm";
+document.body.dataset.mode = MODE;
 import "./style.css";
 
-type Action = "forward" | "back" | "left" | "right" | "jump" | "jet" | "crouch" | "restart" | "checkpoint" | "ghost" | "start" | "mute";
+type Action =
+  | "forward"
+  | "back"
+  | "left"
+  | "right"
+  | "jump"
+  | "jet"
+  | "crouch"
+  | "restart"
+  | "checkpoint"
+  | "ghost"
+  | "start"
+  | "mute"
+  | "fire"
+  | "weapon1"
+  | "weapon2"
+  | "swap"
+  | "scores";
 
 const bindings: Record<Action, string[]> = {
   forward: ["KeyW", "ArrowUp"],
@@ -43,6 +66,12 @@ const bindings: Record<Action, string[]> = {
   ghost: ["KeyG"],
   start: ["Enter", "NumpadEnter"],
   mute: ["KeyM"],
+  // Deathmatch.
+  fire: ["Mouse0"],
+  weapon1: ["Digit1"],
+  weapon2: ["Digit2"],
+  swap: ["KeyQ", "WheelUp", "WheelDown"],
+  scores: ["Tab"],
 };
 
 const COURSE = "icebergs-tamarama";
@@ -190,7 +219,7 @@ async function main() {
       updateGates();
       toast("Go!", 1);
     },
-  });
+  }, MODE === "race");
 
   const showRaceEnd = (time: number) => {
     endEl.querySelector(".time")!.innerHTML = `${formatTime(time)}<small>Race finished</small>`;
@@ -244,6 +273,11 @@ async function main() {
     toast(`${why}: back to ${route.gates[race.lastGate]!.name}`);
   };
 
+  // ------------------------------------------------------------ deathmatch
+  const dm =
+    MODE === "dm" ? new Deathmatch({ scene, camera, world, course, route, player, jet, look, audio, movement, toast: (t, s) => toast(t, s) }) : null;
+  if (dm) for (const g of view.gates) g.root.visible = false;
+
   // ------------------------------------------------------------ tuning
   const tuning = new TuningPanel("Tuning", "bondi-ski.tuning");
   tuning.addGroup("Movement", movement, {
@@ -266,6 +300,27 @@ async function main() {
     drain: [0, 2, 0.01],
     recharge: [0, 2, 0.01],
   });
+  if (dm) {
+    const weapon: Partial<Record<keyof WeaponDef, FieldSpec>> = {
+      speed: [10, 400, 1],
+      inherit: [0, 1, 0.05],
+      gravity: [0, 30, 0.5],
+      damage: [0, 2000, 5],
+      splashRadius: [0, 20, 0.25],
+      splashFalloff: [0, 1, 0.05],
+      midairBonus: [1, 3, 0.05],
+      selfDamage: [0, 1, 0.05],
+      impulse: [0, 40, 0.5],
+      cooldown: [0.05, 3, 0.05],
+      spread: [0, 0.1, 0.001],
+    };
+    tuning.addGroup("Spinfusor", WEAPONS.disc, weapon);
+    tuning.addGroup("Assault rifle", WEAPONS.rifle, { ...weapon, burst: [1, 6, 1], burstInterval: [0.02, 0.3, 0.005], magazine: [0, 120, 1], reload: [0, 5, 0.1] });
+    tuning.addGroup("Health", dm.fighter.settings, { maxHealth: [100, 3000, 10], regenDelay: [0, 30, 0.5], regenRate: [0, 500, 5], respawnTime: [0, 10, 0.5] });
+    const match = tuning.addGroup("Match", dm.settings, { killTarget: [1, 100, 1], resultsTime: [2, 30, 1] });
+    const bots = { count: dm.settings.bots };
+    match.add(bots, "count", 0, 8, 1).name("practice bots").onChange((n: number) => dm.setBots(n));
+  }
   tuning.addGroup("Camera", cameraFeel, { sourceFov: [60, 130, 1], landingDip: true, headBob: [0, 0.08, 0.005] });
   tuning.addGroup("Mouse", look.settings, { sensitivity: [0.1, 10, 0.01], mYaw: true, mPitch: true, invertY: true });
   tuning.addGroup("Audio", audio.settings, { master: [0, 1, 0.01], ocean: [0, 1, 0.01], wind: [0, 1, 0.01] });
@@ -294,8 +349,10 @@ async function main() {
   const loop = new FixedLoop({
     tickRate: simulation.tickRate,
     tick(dt) {
-      if (input.consumePresses("restart") > 0) restart();
-      if (input.consumePresses("checkpoint") > 0) backToGate("Back");
+      const restartPressed = input.consumePresses("restart") > 0;
+      const checkpointPressed = input.consumePresses("checkpoint") > 0;
+      if (!dm && restartPressed) restart();
+      if (!dm && checkpointPressed) backToGate("Back");
       if (input.consumePresses("mute") > 0) setMuted(!audio.muted);
       if (input.consumePresses("ghost") > 0) {
         debug.ghost = !debug.ghost;
@@ -337,10 +394,24 @@ async function main() {
         cmd.forward = cmd.side = cmd.jumpPresses = 0;
         cmd.jet = false;
       }
+      if (dm && !dm.alive) {
+        // Dead: no moving, jetting or shooting until you respawn.
+        cmd.forward = cmd.side = cmd.jumpPresses = 0;
+        cmd.jumpHeld = cmd.ski = cmd.crouch = cmd.jet = false;
+      }
       jet.tick(player, cmd.jet, { x: wx / wl, y: 0, z: wz / wl }, dt);
       player.tick(cmd, dt);
       skiing = !!cmd.ski && player.grounded;
       if (player.events.landedSpeed > 6) audio.landing(player.events.landedSpeed / 25);
+
+      if (dm) {
+        const pick = input.consumePresses("weapon1") > 0 ? "disc" : input.consumePresses("weapon2") > 0 ? "rifle" : input.consumePresses("swap") > 0 ? "swap" : null;
+        dm.tick(dt, { fire: input.isDown("fire"), weapon: pick, reload: restartPressed, scores: input.isDown("scores") });
+        world.step();
+        rig.afterTick(player);
+        topSpeed = Math.max(topSpeed, player.horizontalSpeed);
+        return;
+      }
 
       for (const e of race.tick(dt, from, player.feet)) {
         if (e.kind === "missed") {
@@ -399,12 +470,13 @@ async function main() {
       sun.target.position.set(p.x, p.y - 10, p.z);
       sun.position.copy(sun.target.position).addScaledVector(sunDir, 300);
 
+      if (dm) dm.render(alpha, frameDt);
       mp.render(me());
       if (!endEl.hidden && mp.racing && performance.now() - lastField > 500) {
         lastField = performance.now();
         endEl.querySelector(".field")!.innerHTML = mp.resultsHtml(me());
       }
-      ghost.visible = debug.ghost && best !== null && race.state !== "finished" && !mp.racing;
+      ghost.visible = !dm && debug.ghost && best !== null && race.state !== "finished" && !mp.racing;
       if (ghost.visible && best) {
         const f = best.ghost.sample(race.state === "running" ? race.time : 0);
         if (f) ghost.update(f.x, f.y, f.z, f.yaw);
@@ -426,6 +498,7 @@ async function main() {
           `tick ${loop.tickRate.toFixed(1)} Hz · mouse ${look.rawInput ? "raw" : "accelerated"} · ${renderer.info.render.calls} draws · ${Math.round(hs / SOURCE_UNIT)} u/s`;
       }
       renderer.render(scene, camera);
+      dm?.drawOverlay(renderer);
     },
   });
 
@@ -469,11 +542,11 @@ async function main() {
 
   // Handy in the console while tuning. `autopilot` takes over the controls (tests use it).
   const debugHooks: { autopilot: ((p: PlayerController) => Partial<MoveCommand> & { jet?: boolean }) | null } = { autopilot: null };
-  Object.assign(window, { bondi: { course, route, player, jet, race, world, look, camera, place, restart, mp, hooks: debugHooks } });
+  Object.assign(window, { bondi: { course, route, player, jet, race, world, look, camera, place, restart, mp, dm, hooks: debugHooks } });
 
   applyTuning();
   updateBest();
-  restart();
+  if (!dm) restart();
   document.querySelector("#loading")?.remove();
   loop.start();
 }

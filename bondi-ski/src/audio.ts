@@ -126,6 +126,94 @@ export class CoastAudio {
     playMelody(e, e.pa, personalBest ? PERSONAL_BEST : FINISH, 200, e.ctx.currentTime + 0.3, 0.12);
   }
 
+  // ---------------------------------------------------------------- fighting
+
+  /** A shot: `at` is where (null for your own, played up close). */
+  shot(weapon: string, at: { x: number; y: number; z: number } | null): void {
+    const e = this.engine;
+    if (!e) return;
+    const ctx = e.ctx;
+    const out = at ? this.oneShot(at, 6) : e.sfx;
+    const t = ctx.currentTime;
+    if (weapon === "disc") {
+      // A deep thunk and a rising whine.
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(90, t);
+      osc.frequency.exponentialRampToValueAtTime(420, t + 0.25);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.18, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      const lp = ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 1200;
+      osc.connect(lp).connect(g).connect(out);
+      osc.start(t);
+      osc.stop(t + 0.32);
+      this.noiseBurst(out, 0.09, 0.35, 700);
+    } else {
+      this.noiseBurst(out, 0.05, 0.22, 3000);
+    }
+  }
+
+  /** A blast: big for discs, a tick for bullets. */
+  blast(at: { x: number; y: number; z: number }, big: boolean): void {
+    const e = this.engine;
+    if (!e) return;
+    const out = this.oneShot(at, big ? 10 : 3);
+    if (big) {
+      this.noiseBurst(out, 0.7, 0.9, 500, "brown");
+      this.noiseBurst(out, 0.15, 0.4, 2500);
+    } else {
+      this.noiseBurst(out, 0.04, 0.12, 4000);
+    }
+  }
+
+  /** You hit someone: a bright tick (higher and double for a kill). */
+  hitMarker(kill: boolean): void {
+    const e = this.engine;
+    if (!e) return;
+    const t = e.ctx.currentTime + 0.005;
+    e.tone(e.sfx, kill ? 1760 : 1320, t, 0.12, 0.12);
+    if (kill) e.tone(e.sfx, 2349, t + 0.08, 0.2, 0.12);
+  }
+
+  /** You got hurt. */
+  hurt(): void {
+    const e = this.engine;
+    if (!e) return;
+    const t = e.ctx.currentTime + 0.005;
+    e.tone(e.sfx, 150, t, 0.18, 0.18, [[1, 1], [1.5, 0.5]]);
+  }
+
+  private noiseBurst(out: AudioNode, seconds: number, gain: number, cutoff: number, kind: "white" | "brown" = "white"): void {
+    const e = this.engine!;
+    const ctx = e.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = e.noise(0.8, kind);
+    const f = ctx.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.value = cutoff;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + seconds);
+    src.connect(f).connect(g).connect(out);
+    src.start();
+    src.stop(ctx.currentTime + seconds + 0.05);
+  }
+
+  /** Put the listener at the camera (for positional sounds). */
+  listen(position: { x: number; y: number; z: number }, forward: { x: number; y: number; z: number }): void {
+    this.engine?.setListener(position, forward, { x: 0, y: 1, z: 0 });
+  }
+
+  /** A panner for one short sound, disconnected once it's done. */
+  private oneShot(at: { x: number; y: number; z: number }, ref: number): AudioNode {
+    const p = this.engine!.panner(at, this.engine!.sfx, ref, 1);
+    setTimeout(() => p.disconnect(), 1500);
+    return p;
+  }
+
   /** A low double buzz: you went through the wrong gate. */
   missed(): void {
     const e = this.engine;

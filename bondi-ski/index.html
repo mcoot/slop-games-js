@@ -8,14 +8,22 @@
   <body>
     <canvas id="game"></canvas>
     <div id="crosshair"></div>
-    <div id="timer"><span class="time">0:00.000</span><span class="delta"></span></div>
-    <div id="stage"></div>
-    <div id="best"></div>
+    <div id="timer" class="race-only"><span class="time">0:00.000</span><span class="delta"></span></div>
+    <div id="stage" class="race-only"></div>
+    <div id="best" class="race-only"></div>
     <div id="speed"></div>
     <div id="energy"><div class="fill"></div></div>
     <div id="perf" hidden></div>
     <div id="toast"></div>
     <div id="standings" hidden></div>
+    <div id="hp" class="dm-only"></div>
+    <div id="weapon" class="dm-only"></div>
+    <div id="hitmarker" class="dm-only"></div>
+    <div id="hurtflash" class="dm-only"></div>
+    <div id="feed" class="dm-only"></div>
+    <div id="matchbar" class="dm-only"></div>
+    <div id="scores" class="dm-only" hidden></div>
+    <div id="dead" class="dm-only" hidden></div>
     <div id="countdown" hidden></div>
     <div id="resume" hidden>Click to resume</div>
     <div id="end" hidden>
@@ -31,10 +39,15 @@
     <div id="overlay">
       <div class="card">
         <h1>Bondi Ski</h1>
-        <p class="sub">Icebergs to Tamarama, the Bondi to Coogee coastal walk</p>
-        <p>Ski the real clifftops, Tribes style: hold Space and there's no friction, so every downhill is speed
+        <p class="sub dm-only">Deathmatch on the Bondi to Coogee coastal walk</p>
+        <p class="sub race-only">Icebergs to Tamarama, the Bondi to Coogee coastal walk</p>
+        <p class="dm-only">Tribes on the clifftops: ski the real hills for speed, jet over the gaps, and hit people with discs.
+          A disc that catches someone in the air is a kill. First to the kill target wins.
+          On your own you'll face practice bots; make a room to play friends.
+          <a href="?mode=race">Time trial and races</a></p>
+        <p class="race-only">Ski the real clifftops, Tribes style: hold Space and there's no friction, so every downhill is speed
           and every crest is a launch. Jet up the climbs, keep your energy for when it counts, and hit every
-          gate to Tamarama Beach. Mind the edge: the sea sends you back a gate.</p>
+          gate to Tamarama Beach. Mind the edge: the sea sends you back a gate. <a href="?">Deathmatch</a></p>
         <span class="play">Click to play</span> <button id="sound" type="button">Sound: on</button>
         <div id="mp">
           <h2>Race friends</h2>
@@ -51,11 +64,15 @@
           <dt>Mouse</dt><dd>Look</dd>
           <dt>Space</dt><dd>Tap to jump, hold to ski</dd>
           <dt>Right mouse / Shift</dt><dd>Jetpack (uses energy, recharges when off)</dd>
+          <dt class="dm-only">Left mouse</dt><dd class="dm-only">Fire</dd>
+          <dt class="dm-only">1 / 2 / Q / wheel</dt><dd class="dm-only">Spinfusor / assault rifle / swap</dd>
+          <dt class="dm-only">R</dt><dd class="dm-only">Reload</dd>
+          <dt class="dm-only">Tab</dt><dd class="dm-only">Scores</dd>
           <dt>C / Ctrl</dt><dd>Crouch</dd>
-          <dt>R</dt><dd>Restart the run (in a race: leave it)</dd>
-          <dt>Enter</dt><dd>In a race room: start a race for everyone</dd>
-          <dt>F</dt><dd>Back to the last gate</dd>
-          <dt>G</dt><dd>Show or hide your best run's ghost</dd>
+          <dt class="race-only">R</dt><dd class="race-only">Restart the run (in a race: leave it)</dd>
+          <dt class="race-only">Enter</dt><dd class="race-only">In a race room: start a race for everyone</dd>
+          <dt class="race-only">F</dt><dd class="race-only">Back to the last gate</dd>
+          <dt class="race-only">G</dt><dd class="race-only">Show or hide your best run's ghost</dd>
           <dt>M</dt><dd>Sound on/off</dd>
           <dt>Esc</dt><dd>Release mouse · tuning panel top-right</dd>
         </dl>

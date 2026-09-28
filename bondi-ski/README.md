@@ -1,10 +1,60 @@
 # Bondi Ski
 
-A Tribes-style skiing time trial along the Bondi to Coogee coastal walk in Sydney. The
-first course is **Icebergs to Tamarama** (about 1.06 km of the real walk, round Marks
+Tribes on the Sydney coast: **deathmatch** on the Bondi to Coogee coastal walk (the
+default), plus a skiing **time trial and races** (`?mode=race`). The map is **Icebergs
+to Tamarama** (about 1.06 km of the real walk, round Marks
 Park and Mackenzies Point). You ski the real terrain: the ground, sea, walk, buildings
 and trees come from OpenStreetMap and Geoscience Australia elevation data (see
 [`data/SOURCES.md`](data/SOURCES.md)), with a gate at each landmark.
+
+## Deathmatch
+
+Everyone keeps the skiing and jetpack, and carries two weapons modelled on Tribes:
+Ascend (every number is in the Tuning panel):
+
+| | Spinfusor (1) | Assault rifle (2) |
+| --- | --- | --- |
+| Projectile | Disc, 62 m/s, keeps 50% of your velocity | Round, 230 m/s, keeps 30% |
+| Damage | 700 on a direct hit or the centre of the blast, down to 25% at 7 m | 80 a round, no splash |
+| Midair | ×1.35 on a direct hit against someone in the air: kills from full health | none |
+| Rate | one disc every 1.1 s | three-round bursts (0.075 s apart), 0.3 s between bursts; 24-round magazine, 1.7 s reload |
+| Self | 35% of the damage, full knockback: disc jumps | none |
+
+900 health, back 60 hp/s after 8 s without damage; 3 s to respawn, at a spawn point
+along the course away from everyone. First to 15 kills wins; the scores show for 10 s,
+then a new match starts. Leaving the arena (420 m from the middle) hurts; the sea kills.
+
+On your own you play practice bots (3 by default; Tuning → Match). They're simple:
+they head for the nearest enemy, ski and jet on the way, strafe and hop up close, and
+fire discs at your feet with a rough lead. In a room (title card → Create a room, then
+share the link) it's players only.
+
+| Key | Action |
+| --- | --- |
+| Left mouse | Fire |
+| 1 / 2 / Q / wheel | Spinfusor / assault rifle / swap |
+| R | Reload |
+| Tab | Scores |
+
+### How the fighting works
+
+| File | What it does |
+| --- | --- |
+| `src/combat/weapons.ts` | Weapon definitions and `WeaponState` (cooldowns, bursts, ammo, reloads) |
+| `src/combat/damage.ts` | Blast damage with falloff, the midair bonus, self-damage and knockback; projectile vs capsule |
+| `src/combat/projectiles.ts` | Projectiles in flight: they stop at the world (a ray cast past players' hulls) or a fighter |
+| `src/combat/fighter.ts`, `match.ts` | Health, regen, death and respawn; kills and the kill target |
+| `src/combat/arena.ts` | The fight without drawing: projectiles, damage to our fighters, spawns, the arena edge and the sea |
+| `src/combat/bot.ts` | Practice bots |
+| `src/net/combat.ts` | `CombatSession`: positions, shots, damage and deaths between players |
+| `src/dm/` | The game side: HUD, kill feed, scores, rooms; `src/view/combat.ts` draws projectiles, blasts, fighters and your weapon |
+
+Netcode: every client simulates every projectile from the shots it's told about
+(fast-forwarded by half the round trip), and **each player judges their own damage**:
+if a disc missed you on your screen, it missed. You then tell the room how much you
+took and whether you died; everyone counts kills from those reports, so the scores
+agree. The shooter gets hit markers from the victim's report. There's no server, so
+a player could cheat; fine among friends.
 
 ## Running it
 
@@ -21,7 +71,7 @@ node tools/preview-course.mjs icebergs-tamarama map.png   # top-down map of the 
 Tests run from the repo root (`pnpm test`), including a scripted skier that has to get
 from Icebergs to Tamarama without ending up in the sea.
 
-## Playing
+## The time trial and races (`?mode=race`)
 
 | Key | Action |
 | --- | --- |

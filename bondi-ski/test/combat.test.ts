@@ -1,0 +1,95 @@
+import { describe, expect, it } from "vitest";
+import { RAPIER, createPhysicsWorld } from "@slop/physics";
+import { blastOn, type Target } from "../src/combat/damage";
+import { Fighter } from "../src/combat/fighter";
+import { Projectiles, launchVelocity, type Impact } from "../src/combat/projectiles";
+import { WEAPONS, WeaponState } from "../src/combat/weapons";
+
+const DT = 0.015;
+const target = (over: Partial<Target> = {}): Target => ({ id: "t", feet: { x: 0, y: 0, z: 0 }, height: 1.83, radius: 0.4, airborne: false, ...over });
+
+describe("weapons", () => {
+  it("fires a disc about once a second while the trigger is held", () => {
+    const w = new WeaponState({ ...WEAPONS.disc });
+    let shots = 0;
+    for (let i = 0; i < 3 / DT; i++) shots += w.tick(true, DT);
+    expect(shots).toBe(3);
+  });
+
+  it("fires the rifle in bursts of three, then reloads an empty magazine", () => {
+    const w = new WeaponState({ ...WEAPONS.rifle });
+    const times: number[] = [];
+    for (let i = 0; i < 0.5 / DT; i++) if (w.tick(true, DT) > 0) times.push(i * DT);
+    // First burst: three shots within ~0.2 s, then a pause.
+    expect(times.filter((t) => t < 0.2)).toHaveLength(3);
+    let fired = 0;
+    const w2 = new WeaponState({ ...WEAPONS.rifle });
+    for (let i = 0; i < 3.7 / DT; i++) fired += w2.tick(true, DT);
+    // 24 rounds in eight bursts, then a reload...
+    expect(fired).toBe(24);
+    expect(w2.reloading).toBeGreaterThan(0);
+    for (let i = 0; i < 2.5 / DT; i++) fired += w2.tick(true, DT);
+    // ...then more.
+    expect(fired).toBeGreaterThan(24);
+  });
+});
+
+describe("damage", () => {
+  const disc = WEAPONS.disc;
+  it("a direct disc hit on someone standing takes most of their health; a midair kills", () => {
+    const standing = blastOn(disc, { x: 0, y: 1, z: 0.4 }, target(), true, false)!;
+    const midair = blastOn(disc, { x: 0, y: 1, z: 0.4 }, target({ airborne: true }), true, false)!;
+    expect(standing.damage).toBe(700);
+    expect(midair.midair).toBe(true);
+    expect(midair.damage).toBeGreaterThanOrEqual(900);
+  });
+
+  it("splash falls off with distance and stops at the blast radius", () => {
+    const near = blastOn(disc, { x: 1.5, y: 0.5, z: 0 }, target(), false, false)!;
+    const far = blastOn(disc, { x: 6, y: 0.5, z: 0 }, target(), false, false)!;
+    expect(near.damage).toBeGreaterThan(far.damage);
+    expect(far.damage).toBeGreaterThan(0);
+    expect(blastOn(disc, { x: 9, y: 0.5, z: 0 }, target(), false, false)).toBeNull();
+  });
+
+  it("your own disc barely hurts but throws you (disc jumping)", () => {
+    const own = blastOn(disc, { x: 0, y: -0.2, z: 0 }, target(), false, true)!;
+    expect(own.damage).toBeLessThan(300);
+    expect(own.impulse.y).toBeGreaterThan(10);
+  });
+
+  it("dies at zero health, respawns after a few seconds, regenerates after a while", () => {
+    const f = new Fighter();
+    expect(f.hurt(500)).toBe(false);
+    for (let i = 0; i < 10 / DT; i++) f.tick(DT);
+    expect(f.health).toBeGreaterThan(400);
+    expect(f.hurt(2000)).toBe(true);
+    expect(f.alive).toBe(false);
+    let respawned = false;
+    for (let i = 0; i < 4 / DT && !respawned; i++) respawned = f.tick(DT);
+    expect(respawned).toBe(true);
+  });
+});
+
+describe("projectiles", () => {
+  it("fly, hit the ground or a target, and inherit the shooter's velocity", async () => {
+    const world = await createPhysicsWorld();
+    world.createCollider(RAPIER.ColliderDesc.cuboid(100, 0.5, 100).setTranslation(0, -0.5, 0));
+    world.step();
+    const p = new Projectiles(world, () => false);
+    // Straight at a target 30 m away.
+    const t = target({ feet: { x: 0, y: 0, z: -30 } });
+    p.spawn({ id: "a", owner: "me", weapon: WEAPONS.disc, pos: { x: 0, y: 1, z: 0 }, vel: launchVelocity(WEAPONS.disc, { x: 0, y: 0, z: -1 }, { x: 0, y: 0, z: 0 }) });
+    let impacts: Impact[] = [];
+    for (let i = 0; i < 2 / DT && impacts.length === 0; i++) impacts = p.step(DT, [t]);
+    expect(impacts[0]!.target?.id).toBe("t");
+    // Down into the ground.
+    p.spawn({ id: "b", owner: "me", weapon: WEAPONS.disc, pos: { x: 0, y: 5, z: 0 }, vel: { x: 0, y: -60, z: 0 } });
+    impacts = [];
+    for (let i = 0; i < 1 / DT && impacts.length === 0; i++) impacts = p.step(DT, []);
+    expect(impacts[0]!.target).toBeNull();
+    expect(impacts[0]!.point.y).toBeCloseTo(0, 1);
+    const v = launchVelocity(WEAPONS.disc, { x: 0, y: 0, z: -1 }, { x: 20, y: 0, z: 0 });
+    expect(v.x).toBeCloseTo(20 * WEAPONS.disc.inherit);
+  });
+});

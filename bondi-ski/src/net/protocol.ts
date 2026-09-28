@@ -15,11 +15,35 @@ export type NetMessage =
   | { t: "finish"; race: string; time: number }
   /** Round-trip timing, to start the countdown in step. */
   | { t: "ping"; at: number }
-  | { t: "pong"; at: number };
+  | { t: "pong"; at: number }
+  // ---- Deathmatch
+  /** My fighter, ~20 times a second. `w` is the weapon in hand, `air` whether I'm off the ground. */
+  | { t: "state"; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; vx: number; vy: number; vz: number; alive: boolean; hp: number; w: string; air: boolean }
+  /** I fired: where from and how fast (spread and inherited velocity already applied). */
+  | { t: "fire"; w: string; x: number; y: number; z: number; vx: number; vy: number; vz: number }
+  /** I was hurt (each player decides their own damage from the projectiles they see). */
+  | { t: "hurt"; by: string; w: string; dmg: number; hp: number; midair: boolean }
+  /** I died. */
+  | { t: "died"; by: string; w: string }
+  /** A new match: scores back to zero, first to `target` kills wins. */
+  | { t: "match"; id: string; target: number };
 
 /** Messages are plain JSON; drop anything that isn't one of ours. */
 export function isNetMessage(v: unknown): v is NetMessage {
   if (!v || typeof v !== "object") return false;
   const t = (v as { t?: unknown }).t;
-  return t === "hello" || t === "pos" || t === "countdown" || t === "gate" || t === "finish" || t === "ping" || t === "pong";
+  return (
+    t === "hello" ||
+    t === "pos" ||
+    t === "countdown" ||
+    t === "gate" ||
+    t === "finish" ||
+    t === "ping" ||
+    t === "pong" ||
+    t === "state" ||
+    t === "fire" ||
+    t === "hurt" ||
+    t === "died" ||
+    t === "match"
+  );
 }

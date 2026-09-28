@@ -135,3 +135,29 @@ describe("between races", () => {
     ]);
   });
 });
+
+describe("combat session", () => {
+  it("passes shots, damage and deaths between players", async () => {
+    const { CombatSession } = await import("../src/net/combat");
+    const hub = memoryHub();
+    const now = () => 0;
+    const got: string[] = [];
+    const mk = (name: string) =>
+      new CombatSession(new BusTransport(hub.bus(), now, 100000), name, {
+        peersChanged() {},
+        fire: (from, m) => got.push(`${name} saw ${from === a.selfId ? "a" : "b"} fire ${m.w}`),
+        hurt: (victim, m) => got.push(`${name} saw hurt ${m.dmg} midair=${m.midair}`),
+        died: (victim, by) => got.push(`${name} saw ${victim === b.selfId ? "b" : "a"} killed by ${by === a.selfId ? "a" : "b"}`),
+        match: () => {},
+      }, now);
+    const a = mk("a");
+    const b = mk("b");
+    a.fire({ w: "disc", x: 0, y: 1, z: 0, vx: 0, vy: 0, vz: -60 });
+    b.hurt(a.selfId, "disc", 945, 0, true);
+    b.died(a.selfId, "disc");
+    expect(got).toEqual(["b saw a fire disc", "a saw hurt 945 midair=true", "a saw b killed by a"]);
+    expect([...a.peers.values()][0]!.name).toBe("b");
+    a.leave();
+    b.leave();
+  });
+});

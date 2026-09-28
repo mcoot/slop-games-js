@@ -2,7 +2,7 @@
 Slop browser games
 
 - [`tokyo-station-chase/`](tokyo-station-chase/): first-person chase through Tokyo Station (Three.js + Rapier, Source-style movement)
-- [`bondi-ski/`](bondi-ski/): Tribes-style skiing time trial along the real Bondi to Coogee coastal walk, built from OpenStreetMap and elevation data
+- [`bondi-ski/`](bondi-ski/): Tribes-style deathmatch (and skiing time trials) on the real Bondi to Coogee coastal walk, built from OpenStreetMap and elevation data
 
 Everything is one pnpm workspace: shared, game-agnostic packages in [`packages/`](packages)
 (Source-style movement, input, physics, Blender level loading, tuning panel, audio, AI...)

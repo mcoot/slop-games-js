@@ -24,7 +24,10 @@ export class Multiplayer {
     private readonly standHeight: number,
     private readonly progressOf: (x: number, z: number) => number,
     private readonly events: Omit<SessionEvents, "peersChanged">,
+    /** Off in deathmatch, which runs its own rooms. */
+    active = true,
   ) {
+    if (!active) return;
     const room = new URLSearchParams(location.search).get("room");
     if (room && /^[a-z0-9]{4,12}$/.test(room)) this.join(room);
     this.bindLobby();
@@ -72,7 +75,7 @@ export class Multiplayer {
   join(room: string): void {
     this.leave();
     this.room = room;
-    const { transport, reach } = connect(room);
+    const { transport, reach } = connect(`race-${room}`);
     this.reach = reach;
     this.session = new RaceSession(
       transport,
