@@ -14,6 +14,10 @@ export interface FixedLoopOptions {
  */
 export class FixedLoop {
   tickRate: number;
+  /** Last frame's cost, for perf readouts: simulation ticks run, their total time and the render callback's (ms). */
+  ticksLastFrame = 0;
+  tickMs = 0;
+  renderMs = 0;
   private accumulator = 0;
   private last = 0;
   private handle = 0;
@@ -51,10 +55,17 @@ export class FixedLoop {
   advance(frameDt: number): void {
     const dt = this.dt;
     this.accumulator += frameDt;
+    const t0 = performance.now();
+    let ticks = 0;
     while (this.accumulator >= dt) {
       this.opts.tick(dt);
       this.accumulator -= dt;
+      ticks++;
     }
+    const t1 = performance.now();
     this.opts.render(this.accumulator / dt, frameDt);
+    this.ticksLastFrame = ticks;
+    this.tickMs = t1 - t0;
+    this.renderMs = performance.now() - t1;
   }
 }

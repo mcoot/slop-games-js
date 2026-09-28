@@ -206,6 +206,7 @@ export const OUT_OF_BOUNDS: WeaponDef = {
   midairBonus: 1,
   selfDamage: 1,
   impulse: 0,
+  selfImpulse: 1,
   burst: 1,
   burstInterval: 0,
   cooldown: 0,

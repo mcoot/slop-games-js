@@ -21,6 +21,7 @@ import { RaceTracker, formatDelta, formatTime } from "./race/race";
 import { GhostRecorder, clearBest, loadBest, saveBest, type BestRun } from "./race/ghost";
 import { buildCourseView } from "./view/course";
 import { createSky } from "./view/sky";
+import { GpuTimer } from "./view/gpuTimer";
 import { createWater } from "./view/water";
 import { RacerView } from "./view/racer";
 import { CoastAudio } from "./audio";
@@ -79,7 +80,10 @@ const COURSE = "icebergs-tamarama";
 async function main() {
   const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const display = { renderScale: 1 };
+  const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * display.renderScale);
+  applyPixelRatio();
+  const gpuTimer = new GpuTimer(renderer.getContext() as WebGL2RenderingContext);
   renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -313,6 +317,7 @@ async function main() {
       midairBonus: [1, 3, 0.05],
       selfDamage: [0, 1, 0.05],
       impulse: [0, 40, 0.5],
+      selfImpulse: [0, 4, 0.05],
       cooldown: [0.05, 3, 0.05],
       spread: [0, 0.1, 0.001],
     };
@@ -327,6 +332,7 @@ async function main() {
   tuning.addGroup("Mouse", look.settings, { sensitivity: [0.1, 10, 0.01], mYaw: true, mPitch: true, invertY: true });
   tuning.addGroup("Audio", audio.settings, { master: [0, 1, 0.01], ocean: [0, 1, 0.01], wind: [0, 1, 0.01] });
   tuning.addGroup("Simulation", simulation, { tickRate: [20, 144, 1] });
+  tuning.addGroup("Display", display, { renderScale: [0.25, 1, 0.05] });
   tuning.addGroup("Debug", debug, { fps: true, perf: true, ghost: true });
   tuning.gui.add({ clear: () => { clearBest(bestKey); best = null; updateBest(); } }, "clear").name("Forget my best time");
   tuning.addPersistence();
@@ -337,6 +343,7 @@ async function main() {
     audio.apply();
     perfEl.hidden = !debug.perf;
     fpsEl.hidden = !debug.fps;
+    applyPixelRatio();
     updateBest();
   };
   tuning.onChange(applyTuning);
@@ -347,6 +354,8 @@ async function main() {
   let skiing = false;
   let elapsed = 0;
   let fpsShownAt = 0;
+  let drawCalls = 0;
+  let drawTris = 0;
   let lastField = 0;
   let missedToastUntil = 0;
   let forceStartUntil = 0;
@@ -503,11 +512,18 @@ async function main() {
         fpsEl.textContent = `${Math.round(stats.fps)} fps`;
       }
       if (debug.perf) {
+        const gpu = gpuTimer.supported ? `${gpuTimer.ms?.toFixed(1) ?? "…"} ms` : "n/a";
         perfEl.textContent = `${Math.round(stats.fps)} fps  avg ${stats.averageMs.toFixed(1)} ms  worst ${stats.worstMs.toFixed(1)} ms\n` +
-          `tick ${loop.tickRate.toFixed(1)} Hz · mouse ${look.rawInput ? "raw" : "accelerated"} · ${renderer.info.render.calls} draws · ${Math.round(hs / SOURCE_UNIT)} u/s`;
+          `cpu: sim ${loop.tickMs.toFixed(1)} ms (${loop.ticksLastFrame} ticks) · frame ${loop.renderMs.toFixed(1)} ms · gpu ${gpu}\n` +
+          `tick ${loop.tickRate.toFixed(1)} Hz · mouse ${look.rawInput ? "raw" : "accelerated"} · ${drawCalls} draws · ${(drawTris / 1000).toFixed(0)}k tris · ${Math.round(hs / SOURCE_UNIT)} u/s`;
       }
+      if (debug.perf) gpuTimer.begin();
       renderer.render(scene, camera);
+      // The world pass's numbers (the weapon pass after it resets them).
+      drawCalls = renderer.info.render.calls;
+      drawTris = renderer.info.render.triangles;
       dm?.drawOverlay(renderer);
+      if (debug.perf) gpuTimer.end();
     },
   });
 
