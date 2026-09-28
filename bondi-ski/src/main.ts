@@ -14,7 +14,9 @@ import {
 import { TuningPanel, type FieldSpec } from "@slop/tuning";
 import { inSea, loadCourse, terrainNormal } from "./course/data";
 import { buildRoute, defaultRoute } from "./course/route";
-import { buildCoursePhysics } from "./course/physics";
+import { buildArenaWall, buildCoursePhysics, wallSpan } from "./course/physics";
+import { layoutFor, mapById, MAPS } from "./maps";
+import { ForceField } from "./view/forceField";
 import { bondiMovementPresets, bondiSkiMovement } from "./movement";
 import { Jetpack } from "./jetpack";
 import { RaceTracker, formatDelta, formatTime } from "./race/race";
@@ -32,6 +34,8 @@ import { WEAPONS, type WeaponDef } from "./combat/weapons";
 /** Deathmatch by default; the time trial and races with `?mode=race`. */
 const MODE: "dm" | "race" = new URLSearchParams(location.search).get("mode") === "race" ? "race" : "dm";
 document.body.dataset.mode = MODE;
+/** The deathmatch map, from `?map=` (the arena on Marks Park by default). */
+const MAP = mapById(new URLSearchParams(location.search).get("map"));
 import "./style.css";
 
 type Action =
@@ -89,6 +93,23 @@ async function main() {
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const course = await loadCourse("course/", COURSE);
+  document.querySelector(".map-title")!.textContent = MAP.title;
+  // Other maps reload the page onto them (a room link carries its map along).
+  const mapsEl = document.querySelector<HTMLElement>(".maps")!;
+  mapsEl.append(`${MAP.blurb} Maps: `);
+  MAPS.forEach((m, i) => {
+    if (i > 0) mapsEl.append(" · ");
+    if (m === MAP) {
+      const b = document.createElement("b");
+      b.textContent = m.title;
+      mapsEl.append(b);
+    } else {
+      const a = document.createElement("a");
+      a.href = `?map=${m.id}`;
+      a.textContent = m.title;
+      mapsEl.append(a);
+    }
+  });
   document.querySelector(".credits")!.textContent =
     `${course.attribution.join(" · ")}. Terrain, the walk, buildings and trees come from this data.`;
 
@@ -118,6 +139,14 @@ async function main() {
   const physics = buildCoursePhysics(world, course, route);
   const view = buildCourseView(course, route);
   scene.add(view.root);
+  const layout = layoutFor(MAP, course, route);
+  let forceField: ForceField | null = null;
+  if (MODE === "dm" && layout.walled) {
+    buildArenaWall(world, course, MAP.centre, MAP.radius);
+    const span = wallSpan(course, MAP.centre, MAP.radius);
+    forceField = new ForceField(MAP.centre, MAP.radius, span.bottom, span.top);
+    scene.add(forceField.mesh);
+  }
   world.step();
 
   const movement: MovementSettings = { ...bondiSkiMovement };
@@ -280,7 +309,7 @@ async function main() {
 
   // ------------------------------------------------------------ deathmatch
   const dm =
-    MODE === "dm" ? new Deathmatch({ scene, camera, world, course, route, player, jet, look, audio, movement, toast: (t, s) => toast(t, s) }) : null;
+    MODE === "dm" ? new Deathmatch({ scene, camera, world, course, layout, player, jet, look, audio, movement, toast: (t, s) => toast(t, s) }) : null;
   if (dm) for (const g of view.gates) g.root.visible = false;
 
   // ------------------------------------------------------------ tuning
@@ -478,6 +507,7 @@ async function main() {
       elapsed += frameDt;
       rig.update(player, alpha, look.yaw, look.pitch, frameDt);
       water.update(elapsed);
+      forceField?.update(camera.position, elapsed);
       // Keep the shadowed area around the player.
       const p = camera.position;
       sun.target.position.set(p.x, p.y - 10, p.z);

@@ -1,5 +1,5 @@
 import { RAPIER, type PhysicsWorld } from "@slop/physics";
-import type { CourseData } from "./data";
+import { heightAt, type CourseData } from "./data";
 import { RAIL_HEIGHT, type Route } from "./route";
 
 /** Tall enough for the pines along the walk. */
@@ -121,5 +121,47 @@ function triangulate(ring: [number, number][]): [number, number, number][] {
     if (!clipped) break; // degenerate: give up on the rest
   }
   if (idx.length === 3 && cross(idx[0]!, idx[1]!, idx[2]!) > 0) out.push([idx[0]!, idx[1]!, idx[2]!]);
+  return out;
+}
+
+/** Segments in an arena's force-field wall (for physics and drawing). */
+export const WALL_SEGMENTS = 96;
+/** How far the wall reaches above the highest ground along it (m). */
+export const WALL_HEADROOM = 70;
+
+/** The vertical extent of an arena wall of `radius` round `centre`: below the ground (or seabed) to well above it. */
+export function wallSpan(course: CourseData, centre: { x: number; z: number }, radius: number): { bottom: number; top: number } {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < WALL_SEGMENTS * 2; i++) {
+    const a = (i / (WALL_SEGMENTS * 2)) * Math.PI * 2;
+    const h = heightAt(course.terrain, centre.x + Math.cos(a) * radius, centre.z + Math.sin(a) * radius);
+    lo = Math.min(lo, h);
+    hi = Math.max(hi, h);
+  }
+  return { bottom: lo - 5, top: hi + WALL_HEADROOM };
+}
+
+/** An arena's force field as a ring of thin boxes: solid to players and projectiles alike. */
+export function buildArenaWall(world: PhysicsWorld, course: CourseData, centre: { x: number; z: number }, radius: number): RAPIER.Collider[] {
+  const { bottom, top } = wallSpan(course, centre, radius);
+  const half = (top - bottom) / 2;
+  // Each box spans its chord with a little overlap so there are no gaps at the joints.
+  const chord = 2 * radius * Math.sin(Math.PI / WALL_SEGMENTS) + 0.2;
+  const out: RAPIER.Collider[] = [];
+  for (let i = 0; i < WALL_SEGMENTS; i++) {
+    const a = ((i + 0.5) / WALL_SEGMENTS) * Math.PI * 2;
+    const x = centre.x + Math.cos(a) * radius;
+    const z = centre.z + Math.sin(a) * radius;
+    // Turn the box's long (local Z) axis onto the tangent (-sin a, 0, cos a).
+    const yaw = -a;
+    out.push(
+      world.createCollider(
+        RAPIER.ColliderDesc.cuboid(0.25, half, chord / 2)
+          .setTranslation(x, bottom + half, z)
+          .setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }),
+      ),
+    );
+  }
   return out;
 }

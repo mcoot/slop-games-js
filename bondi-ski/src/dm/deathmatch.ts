@@ -3,10 +3,10 @@ import type { MouseLook } from "@slop/input";
 import type { PhysicsWorld } from "@slop/physics";
 import type { MovementSettings, PlayerController } from "@slop/fps-controller";
 import type { CourseData } from "../course/data";
-import type { Route } from "../course/route";
 import type { Jetpack } from "../jetpack";
 import type { CoastAudio } from "../audio";
-import { Arena, aimOf, ARENA_RADIUS, type Local } from "../combat/arena";
+import { Arena, aimOf, type Local } from "../combat/arena";
+import type { ArenaLayout } from "../maps";
 import type { Target } from "../combat/damage";
 import { Fighter } from "../combat/fighter";
 import { WEAPONS, type WeaponDef, type WeaponId } from "../combat/weapons";
@@ -24,7 +24,7 @@ export interface DeathmatchContext {
   camera: THREE.PerspectiveCamera;
   world: PhysicsWorld;
   course: CourseData;
-  route: Route;
+  layout: ArenaLayout;
   player: PlayerController;
   jet: Jetpack;
   look: MouseLook;
@@ -84,7 +84,7 @@ export class Deathmatch {
 
   constructor(private readonly ctx: DeathmatchContext) {
     this.me = { id: "me", body: ctx.player, fighter: this.fighter, jet: ctx.jet };
-    this.arena = new Arena(ctx.world, ctx.course, ctx.route, ctx.movement, this.me, {
+    this.arena = new Arena(ctx.world, ctx.course, ctx.layout, ctx.movement, this.me, {
       shot: (owner, w, pos, vel) => {
         if (owner === this.me.id) {
           this.session?.fire({ w: w.id, x: pos.x, y: pos.y, z: pos.z, vx: vel.x, vy: vel.y, vz: vel.z });
@@ -185,7 +185,7 @@ export class Deathmatch {
 
     // The arena edge: a warning, then damage (in the arena's step).
     const c = this.arena.centre;
-    const out = Math.hypot(this.ctx.player.feet.x - c.x, this.ctx.player.feet.z - c.z) > ARENA_RADIUS - 30;
+    const out = Math.hypot(this.ctx.player.feet.x - c.x, this.ctx.player.feet.z - c.z) > this.arena.radius - (this.ctx.layout.walled ? 0 : 30);
     if (out && !this.outWarned && f.alive) this.ctx.toast("Turn back: you're leaving the arena", 2);
     this.outWarned = out;
 
