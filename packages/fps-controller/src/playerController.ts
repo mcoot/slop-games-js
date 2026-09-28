@@ -60,6 +60,13 @@ export class PlayerController {
   eyeHeight: number;
   prevEyeHeight: number;
   readonly events: MoveEvents = { jumped: false, landedSpeed: 0, stepDelta: 0 };
+  /**
+   * Optional correction of contact normals, given what was hit and the contact point on it.
+   * Where a hull edge crosses the edge between two triangles of a mesh, Rapier can report a
+   * normal belonging to neither; on a smoothly curving surface (a surf ramp) clipping
+   * against it bleeds speed. A game that knows the true surface can return its normal.
+   */
+  contactNormal: ((normal: Vec3, point: Vec3, collider: RAPIER.Collider) => Vec3) | null = null;
 
   private readonly collider: RAPIER.Collider;
   private readonly kcc: RAPIER.KinematicCharacterController;
@@ -269,7 +276,9 @@ export class PlayerController {
     const normals: Vec3[] = [];
     for (let i = 0; i < this.kcc.numComputedCollisions(); i++) {
       const c = this.kcc.computedCollision(i);
-      if (c) normals.push({ x: c.normal1.x, y: c.normal1.y, z: c.normal1.z });
+      if (!c) continue;
+      const n = { x: c.normal1.x, y: c.normal1.y, z: c.normal1.z };
+      normals.push(this.contactNormal && c.collider ? this.contactNormal(n, c.witness1, c.collider) : n);
     }
     return normals;
   }
