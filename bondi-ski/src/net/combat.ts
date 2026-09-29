@@ -10,18 +10,54 @@ import type { TeamId } from "../combat/teams";
  * you dodged on your screen really missed. Scores are counted by everyone from the
  * death reports.
  */
+/** A fighter's pose: where their feet are and where they look. */
+export interface Pose {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+}
+
+type FighterSnapshot = Snapshot & { pitch: number; vx: number; vy: number; vz: number; air: boolean };
+
+/**
+ * How remote fighters are placed. With `predict` on, they're shown where they should be
+ * *now* (their last state carried forward by its velocity, plus gravity in the air) so
+ * what you aim at is where they really are; off, they're shown a little in the past,
+ * smoothly interpolated, which is accurate but lags behind a fast skier by metres.
+ */
+export const netSettings = {
+  predict: true,
+  /** Furthest ahead of their last state we'll guess (s). */
+  maxAhead: 0.35,
+  /** How quickly a correction (a new state that disagrees with the guess) fades out (s). */
+  smoothing: 0.08,
+  /** A correction bigger than this (m) is a teleport (respawn): snap, don't slide. */
+  snapDistance: 6,
+  /** How often to re-measure latency (s). */
+  pingInterval: 1,
+  /** Gravity for airborne fighters (m/s², the movement settings' gravity). */
+  gravity: 16,
+};
+
 export interface RemoteFighter {
   id: string;
   name: string;
   colour: string;
-  snapshots: (Snapshot & { pitch: number })[];
+  snapshots: FighterSnapshot[];
+  /** What's left of the last correction, fading from `correctionAt`. */
+  correction: { x: number; y: number; z: number };
+  correctionAt: number;
   velocity: { x: number; y: number; z: number };
   alive: boolean;
   hp: number;
   weapon: string;
   airborne: boolean;
-  /** Estimated one-way latency (s), to fast-forward their shots. */
+  /** Estimated one-way latency (s), to fast-forward their shots and their position. */
   latency: number;
+  /** Latency measurements so far (the first replaces the guess, later ones are smoothed in). */
+  pings: number;
   /** Their team when playing teams (null until they say). */
   team: TeamId | null;
   /** What they said in their hello: when they joined, and their map and game (null until then). */
@@ -49,6 +85,9 @@ export class CombatSession {
   readonly peers = new Map<string, RemoteFighter>();
   private seq = 0;
   private lastSent = -Infinity;
+  private lastPing = -Infinity;
+  /** The ground under a point, so an airborne guess doesn't sink into it (optional). */
+  ground: ((x: number, z: number) => number) | null = null;
 
   /** Our team when playing teams. */
   team: TeamId | null = null;
@@ -67,12 +106,15 @@ export class CombatSession {
         name: UNNAMED,
         colour: colourFor(id),
         snapshots: [],
+        correction: { x: 0, y: 0, z: 0 },
+        correctionAt: 0,
         velocity: { x: 0, y: 0, z: 0 },
         alive: true,
         hp: 0,
         weapon: "disc",
         airborne: false,
         latency: 0.05,
+        pings: 0,
         team: null,
         room: null,
       });
@@ -125,6 +167,10 @@ export class CombatSession {
 
   tick(me: Omit<Extract<NetMessage, { t: "state" }>, "t" | "seq">): void {
     const now = this.now();
+    if (now - this.lastPing >= netSettings.pingInterval * 1000) {
+      this.lastPing = now;
+      if (this.peers.size > 0) this.transport.send({ t: "ping", at: now });
+    }
     if (now - this.lastSent < SEND_INTERVAL_MS) return;
     this.lastSent = now;
     this.transport.send({ t: "state", seq: this.seq++, ...me, ...(this.team !== null ? { team: this.team } : {}), x: r2(me.x), y: r2(me.y), z: r2(me.z), yaw: r2(me.yaw), pitch: r2(me.pitch), vx: r2(me.vx), vy: r2(me.vy), vz: r2(me.vz) });
@@ -150,8 +196,33 @@ export class CombatSession {
     this.transport.leave();
   }
 
+  /**
+   * Where someone is, for drawing them and for your shots to hit: predicted to now, or
+   * interpolated in the past with prediction off.
+   */
+  pose(f: RemoteFighter): Pose | null {
+    if (!netSettings.predict) return this.sample(f);
+    const p = this.predict(f);
+    if (!p) return null;
+    const k = Math.exp(-(this.now() - f.correctionAt) / 1000 / Math.max(netSettings.smoothing, 1e-3));
+    return { ...p, x: p.x + f.correction.x * k, y: p.y + f.correction.y * k, z: p.z + f.correction.z * k };
+  }
+
+  /** Their last state carried forward to now: sent `latency` before it arrived, and it's aged since. */
+  private predict(f: RemoteFighter): Pose | null {
+    const last = f.snapshots.at(-1);
+    if (!last) return null;
+    const ahead = Math.min(Math.max((this.now() - last.at) / 1000 + f.latency, 0), netSettings.maxAhead);
+    const g = last.air ? netSettings.gravity : 0;
+    const x = last.x + last.vx * ahead;
+    const z = last.z + last.vz * ahead;
+    let y = last.y + last.vy * ahead - 0.5 * g * ahead * ahead;
+    if (last.air && this.ground) y = Math.max(y, Math.min(this.ground(x, z), last.y + last.vy * ahead));
+    return { x, y, z, yaw: last.yaw, pitch: last.pitch };
+  }
+
   /** Where to draw someone: interpolated a little in the past. */
-  sample(f: RemoteFighter): (Snapshot & { pitch: number }) | null {
+  sample(f: RemoteFighter): Pose | null {
     const s = f.snapshots;
     if (s.length === 0) return null;
     const t = this.now() - INTERPOLATION_DELAY_MS;
@@ -163,7 +234,7 @@ export class CombatSession {
         const k = Math.min((t - a.at) / Math.max(b.at - a.at, 1), 1);
         let dy = b.yaw - a.yaw;
         dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-        return { at: t, x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k, yaw: a.yaw + dy * k, pitch: a.pitch + (b.pitch - a.pitch) * k };
+        return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k, yaw: a.yaw + dy * k, pitch: a.pitch + (b.pitch - a.pitch) * k };
       }
     }
     return s.at(-1)!;
@@ -180,7 +251,11 @@ export class CombatSession {
         this.transport.send({ t: "pong", at: m.at }, from);
         return;
       case "pong":
-        if (peer) peer.latency = Math.min((this.now() - m.at) / 2000, 0.25);
+        if (peer) {
+          const oneWay = Math.min((this.now() - m.at) / 2000, 0.25);
+          peer.latency = peer.pings === 0 ? oneWay : peer.latency * 0.8 + oneWay * 0.2;
+          peer.pings++;
+        }
         return;
       case "hello":
         if (peer) {
@@ -194,8 +269,17 @@ export class CombatSession {
         return;
       case "state":
         if (!peer) return;
-        peer.snapshots.push({ at: this.now(), x: m.x, y: m.y, z: m.z, yaw: m.yaw, pitch: m.pitch });
-        if (peer.snapshots.length > 20) peer.snapshots.shift();
+        {
+          // Where we were showing them, so the jump to the new guess can be smoothed out.
+          const before = this.pose(peer);
+          peer.snapshots.push({ at: this.now(), x: m.x, y: m.y, z: m.z, yaw: m.yaw, pitch: m.pitch, vx: m.vx, vy: m.vy, vz: m.vz, air: m.air });
+          if (peer.snapshots.length > 20) peer.snapshots.shift();
+          const after = this.predict(peer)!;
+          const c = before ? { x: before.x - after.x, y: before.y - after.y, z: before.z - after.z } : { x: 0, y: 0, z: 0 };
+          const respawned = !peer.alive && m.alive;
+          peer.correction = respawned || Math.hypot(c.x, c.y, c.z) > netSettings.snapDistance ? { x: 0, y: 0, z: 0 } : c;
+          peer.correctionAt = this.now();
+        }
         peer.velocity = { x: m.vx, y: m.vy, z: m.vz };
         peer.alive = m.alive;
         peer.hp = m.hp;

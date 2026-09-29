@@ -182,4 +182,59 @@ describe("combat session", () => {
     expect(late.isHost).toBe(true);
     late.leave();
   });
+
+  it("shows a skier where they are now, not where they were, and smooths corrections", async () => {
+    const { CombatSession, netSettings } = await import("../src/net/combat");
+    const hub = memoryHub();
+    let clock = 0;
+    const now = () => clock;
+    const events = { peersChanged() {}, fire() {}, hurt() {}, died() {}, match() {} };
+    const skier = new CombatSession(new BusTransport(hub.bus(), now, 100000), "skier", events, now);
+    const shooter = new CombatSession(new BusTransport(hub.bus(), now, 100000), "shooter", events, now);
+    const seen = shooter.peers.get(skier.selfId)!;
+    seen.latency = 0.05;
+    const state = (x: number, vx: number) => ({ x, y: 0, z: 0, yaw: 0, pitch: 0, vx, vy: 0, vz: 0, alive: true, hp: 900, w: "disc", air: false });
+    // Skiing at 20 m/s: states every 50 ms.
+    for (let i = 0; i <= 10; i++) {
+      clock = i * 50;
+      skier.tick(state(i, 20));
+    }
+    // 30 ms after the last state (at x = 10, sent 50 ms before it arrived), they're 1.6 m on.
+    clock = 530;
+    expect(shooter.pose(seen)!.x).toBeCloseTo(10 + 20 * 0.08, 1);
+    // Interpolating in the past would put them metres behind.
+    expect(shooter.sample(seen)!.x).toBeLessThan(8.5);
+    // They stop dead: the new state disagrees with the guess, and the difference fades.
+    clock = 550;
+    skier.tick(state(10.5, 0));
+    expect(shooter.pose(seen)!.x).toBeGreaterThan(11);
+    clock = 550 + netSettings.smoothing * 1000 * 5;
+    expect(shooter.pose(seen)!.x).toBeCloseTo(10.5, 1);
+    // A respawn far away snaps rather than sliding across the map.
+    clock += 50;
+    skier.tick(state(200, 0));
+    expect(shooter.pose(seen)!.x).toBeCloseTo(200, 1);
+    skier.leave();
+    shooter.leave();
+  });
+
+  it("falls with gravity in the air but not through the ground", async () => {
+    const { CombatSession, netSettings } = await import("../src/net/combat");
+    const hub = memoryHub();
+    let clock = 0;
+    const now = () => clock;
+    const events = { peersChanged() {}, fire() {}, hurt() {}, died() {}, match() {} };
+    const flyer = new CombatSession(new BusTransport(hub.bus(), now, 100000), "flyer", events, now);
+    const watcher = new CombatSession(new BusTransport(hub.bus(), now, 100000), "watcher", events, now);
+    watcher.ground = () => 9.9;
+    const seen = watcher.peers.get(flyer.selfId)!;
+    seen.latency = 0;
+    flyer.tick({ x: 0, y: 10, z: 0, yaw: 0, pitch: 0, vx: 0, vy: 0, vz: 0, alive: true, hp: 900, w: "disc", air: true });
+    clock = 100;
+    expect(watcher.pose(seen)!.y).toBeCloseTo(10 - 0.5 * netSettings.gravity * 0.01, 2);
+    clock = 300;
+    expect(watcher.pose(seen)!.y).toBeCloseTo(9.9, 2);
+    flyer.leave();
+    watcher.leave();
+  });
 });
