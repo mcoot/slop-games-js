@@ -59,15 +59,15 @@ describe("switching weapons", () => {
 });
 
 describe("inheritance", () => {
-  it("adds half your velocity to a shot, whichever way you're going", () => {
+  it("adds a share of your velocity to a shot, whichever way you're going", () => {
     const aim = { x: 0, y: 0, z: -1 };
     const moving = { x: 20, y: 4, z: -30 };
-    for (const w of [WEAPONS.disc, WEAPONS.rifle, WEAPONS.grenade]) {
+    for (const [w, share] of [[WEAPONS.disc, 0.5], [WEAPONS.rifle, 0.3], [WEAPONS.grenade, 0.5]] as const) {
       const v = launchVelocity(w, aim, moving, () => 0.5);
-      expect(w.inherit).toBe(0.5);
-      expect(v.x).toBeCloseTo(10);
-      expect(v.y).toBeCloseTo(2);
-      expect(v.z).toBeCloseTo(-w.speed - 15);
+      expect(w.inherit).toBe(share);
+      expect(v.x).toBeCloseTo(20 * share);
+      expect(v.y).toBeCloseTo(4 * share);
+      expect(v.z).toBeCloseTo(-w.speed - 30 * share);
     }
   });
 });

@@ -80,7 +80,8 @@ export const WEAPONS: Record<ProjectileId, WeaponDef> = {
     id: "rifle",
     name: "Assault Rifle",
     speed: 230,
-    inherit: 0.5,
+    // T:A's assault rifles keep less of your speed than the disc.
+    inherit: 0.3,
     gravity: 0,
     lifetime: 1.4,
     radius: 0.1,

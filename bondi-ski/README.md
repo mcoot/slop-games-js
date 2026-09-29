@@ -31,7 +31,7 @@ Ascend (every number is in the Tuning panel):
 
 | | Spinfusor (1) | Assault rifle (2) | Impact Nitron (F) |
 | --- | --- | --- | --- |
-| Projectile | Disc, 62 m/s, keeps 50% of your velocity | Round, 230 m/s, keeps 50% | Grenade, 30 m/s thrown in an arc, keeps 50%, bursts on impact |
+| Projectile | Disc, 62 m/s, keeps 50% of your velocity | Round, 230 m/s, keeps 30% | Grenade, 30 m/s thrown in an arc, keeps 50%, bursts on impact |
 | Damage | 700 on a direct hit or within 2 m of the blast, then down to 25% at 7 m | 80 a round, no splash | 450 within 1.5 m, down to 30% at 8 m |
 | Midair | ×1.1 on a direct hit against someone in the air: 770, nearly a kill from full health | none | none |
 | Rate | one disc every 1.1 s | three-round bursts (0.075 s apart), 0.3 s between bursts; 24-round magazine, 1.7 s reload | one every 0.8 s; 3 per life, restocked when you respawn |
