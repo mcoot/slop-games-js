@@ -92,7 +92,9 @@ default; remembered, or `?bots=` in the link; also Tuning → Match). On your ow
 fight waits while you're on the pre-match screen: bots stand still until you play. They're simple:
 they head for the nearest enemy, ski and jet on the way, strafe and hop up close, and
 fire discs at your feet with a rough lead. In a room (title card → Create a room, then
-share the link, which carries the map and game type) it's players only.
+share the link, which carries the map and game type) it's players only. The room's
+host (whoever has been in it longest; the next longest if they leave) picks the map and
+free-for-all or teams: everyone else's page follows them there.
 
 | Key | Action |
 | --- | --- |

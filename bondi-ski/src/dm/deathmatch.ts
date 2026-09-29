@@ -6,7 +6,7 @@ import type { CourseData } from "../course/data";
 import type { Jetpack } from "../jetpack";
 import type { CoastAudio } from "../audio";
 import { Arena, aimOf, type Local } from "../combat/arena";
-import type { ArenaLayout } from "../maps";
+import { mapById, type ArenaLayout } from "../maps";
 import type { Target } from "../combat/damage";
 import { Fighter } from "../combat/fighter";
 import { WEAPONS, type ProjectileId, type WeaponDef, type WeaponId } from "../combat/weapons";
@@ -227,10 +227,9 @@ export class Deathmatch {
     // After a match: a break for the results, then a new one.
     const m = this.arena.match;
     if (m.over && this.arena.now() - m.endedAt > this.settings.resultsTime) {
-      // One player (the first by id) starts the next match for the room.
-      const ids = [this.session?.selfId ?? "", ...(this.session?.peers.keys() ?? [])].sort();
+      // The host starts the next match for the room.
       const id = randomId(6);
-      if (!this.session || ids[0] === this.session.selfId) this.session?.startMatch(id, this.target);
+      if (this.session?.isHost) this.session.startMatch(id, this.target);
       this.newMatch(id);
     }
   }
@@ -287,6 +286,7 @@ export class Deathmatch {
     this.dropViews();
     this.session = new CombatSession(transport, this.lobby.name, {
       peersChanged: () => {
+        this.followHost();
         this.balanceTeams();
         this.lobby.render();
         this.syncViews();
@@ -318,11 +318,35 @@ export class Deathmatch {
           this.newMatch(id);
         }
       },
-    });
+    }, undefined, { since: this.lobby.since, map: this.ctx.layout.map.id, game: this.gameType });
     if (this.teams) this.session.setTeam(this.myTeam);
     // Our own deaths and kills are counted under our id in the room.
     this.me.id = this.session.selfId;
   }
+
+  /** Who hosts the room we're in (null on our own). */
+  host(): { you: boolean; name: string } | null {
+    if (!this.session) return null;
+    const id = this.session.hostId;
+    return { you: id === this.session.selfId, name: this.nameOf(id) };
+  }
+
+  /** In a room, go to the host's map and game if we're somewhere else (the page reloads there, still in the room). */
+  private followHost(): void {
+    const s = this.session;
+    if (!s || s.isHost || this.following) return;
+    const host = s.peers.get(s.hostId)?.room;
+    if (!host || (host.map === this.ctx.layout.map.id && host.game === this.gameType)) return;
+    this.following = true;
+    this.ctx.toast(`Joining the host on ${mapById(host.map).title}…`, 3);
+    const url = new URL(location.href);
+    url.searchParams.set("map", mapById(host.map).id);
+    if (host.game === "teams") url.searchParams.set("teams", "1");
+    else url.searchParams.delete("teams");
+    location.replace(url.toString());
+  }
+
+  private following = false;
 
   private leaveRoom(): void {
     this.session?.leave();

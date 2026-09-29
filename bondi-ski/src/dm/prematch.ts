@@ -39,6 +39,8 @@ export interface PrematchOptions {
   team(): TeamId;
   setTeam(t: TeamId): void;
   teamSizes(): [number, number];
+  /** Who hosts the room we're in (null on our own): only the host picks the map and game. */
+  host(): { you: boolean; name: string } | null;
 }
 
 /**
@@ -134,6 +136,12 @@ export class Prematch {
   render(): void {
     const room = this.o.inRoom();
     const bots = this.o.bots();
+    const host = this.o.host();
+    const follower = host !== null && !host.you;
+    for (const b of document.querySelectorAll<HTMLButtonElement>("#overlay .maplist button, #overlay .gametype button")) b.disabled = follower;
+    const note = document.querySelector<HTMLElement>("#overlay .host-note")!;
+    note.hidden = host === null;
+    if (host) note.textContent = host.you ? "You're the room's host: your map and game are everyone's." : `${host.name} hosts this room and picks the map and game.`;
     if (this.o.gameType === "teams") {
       const mine = this.o.team();
       const sizes = this.o.teamSizes();

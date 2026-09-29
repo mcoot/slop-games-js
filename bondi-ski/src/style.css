@@ -148,6 +148,9 @@ body:not([data-mode="race"]) .card .setup { grid-template-columns: 1.25fr 1fr; }
 .card .seg button[aria-pressed="true"] { background: #6fd3ff; color: #0b2233; }
 .card .seg button:disabled { opacity: .35; cursor: default; }
 .card .bots-hint { margin: 0; font-size: 12px; opacity: .75; }
+.card .host-note { margin: -2px 0 8px; font-size: 12px; opacity: .8; }
+.card .map:disabled { cursor: default; opacity: .45; }
+.card .map[aria-pressed="true"]:disabled { opacity: 1; }
 .card .actions { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
 .card .controls summary { cursor: pointer; font-size: 12px; font-weight: 700; opacity: .75; margin-bottom: 8px; }
 @media (max-width: 640px) {

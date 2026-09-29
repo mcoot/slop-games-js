@@ -3,8 +3,11 @@
  * to everyone in the room, everything else is occasional.
  */
 export type NetMessage =
-  /** Who I am. Sent on joining and whenever someone new appears. */
-  | { t: "hello"; name: string; colour: string; team?: number }
+  /**
+   * Who I am. Sent on joining and whenever someone new appears. In a deathmatch room also
+   * when I joined (`since`: the earliest is the host) and the map and game I'm on.
+   */
+  | { t: "hello"; name: string; colour: string; team?: number; since?: number; map?: string; game?: string }
   /** Where I am. `race` is the race I'm in (or ""), `time` my race clock. */
   | { t: "pos"; seq: number; race: string; time: number; x: number; y: number; z: number; yaw: number; next: number }
   /** Start a race: everyone in the room counts down from `seconds` and goes together. */
