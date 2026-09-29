@@ -9,7 +9,7 @@ import { Arena, aimOf, type Local } from "../combat/arena";
 import type { ArenaLayout } from "../maps";
 import type { Target } from "../combat/damage";
 import { Fighter } from "../combat/fighter";
-import { WEAPONS, type WeaponDef, type WeaponId } from "../combat/weapons";
+import { WEAPONS, type ProjectileId, type WeaponDef, type WeaponId } from "../combat/weapons";
 import { CombatSession } from "../net/combat";
 import { colourFor } from "../net/session";
 import { randomId, type Transport } from "../net/transport";
@@ -52,7 +52,7 @@ const BOT_COLOURS = ["#ff6b5e", "#ffa94d", "#b18cff", "#ff8fd8", "#e6f36b", "#3d
  */
 export class Deathmatch {
   readonly settings: DeathmatchSettings = { killTarget: 15, bots: 3, resultsTime: 10 };
-  readonly weaponSettings: Record<WeaponId, WeaponDef> = WEAPONS;
+  readonly weaponSettings: Record<ProjectileId, WeaponDef> = WEAPONS;
   readonly fighter = new Fighter();
   readonly arena: Arena;
   session: CombatSession | null = null;
@@ -88,7 +88,7 @@ export class Deathmatch {
       shot: (owner, w, pos, vel) => {
         if (owner === this.me.id) {
           this.session?.fire({ w: w.id, x: pos.x, y: pos.y, z: pos.z, vx: vel.x, vy: vel.y, vz: vel.z });
-          this.viewmodel.fired(w.id === "disc" ? 1 : 0.3);
+          this.viewmodel.fired(w.id === "disc" ? 1 : w.id === "grenade" ? 0.5 : 0.3);
           ctx.audio.shot(w.id, null);
         } else {
           ctx.audio.shot(w.id, pos);
@@ -156,7 +156,7 @@ export class Deathmatch {
   }
 
   /** Called every tick after the player has moved, before the physics step. */
-  tick(dt: number, input: { fire: boolean; weapon: WeaponId | "swap" | null; reload: boolean; scores: boolean }): void {
+  tick(dt: number, input: { fire: boolean; grenade: boolean; weapon: WeaponId | "swap" | null; reload: boolean; scores: boolean }): void {
     const f = this.fighter;
     this.showScores = input.scores;
     if (input.weapon && f.alive) {
@@ -166,11 +166,11 @@ export class Deathmatch {
     if (input.reload && f.switching === 0) f.weapon.startReload();
     const matchOver = this.arena.match.over;
     const shots = f.alive ? f.tickWeapons(input.fire && !matchOver, dt) : 0;
-    for (let i = 0; i < shots; i++) {
-      const p = this.ctx.player;
-      const eye = { x: p.feet.x, y: p.feet.y + p.eyeHeight, z: p.feet.z };
-      this.arena.fire(this.me.id, f.weapon.def, eye, aimOf(this.ctx.look.yaw, this.ctx.look.pitch), p.velocity);
-    }
+    const p = this.ctx.player;
+    const eye = { x: p.feet.x, y: p.feet.y + p.eyeHeight, z: p.feet.z };
+    const aim = aimOf(this.ctx.look.yaw, this.ctx.look.pitch);
+    for (let i = 0; i < shots; i++) this.arena.fire(this.me.id, f.weapon.def, eye, aim, p.velocity);
+    if (f.tickGrenade(input.grenade && !matchOver, dt) > 0) this.arena.fire(this.me.id, f.grenades.def, eye, aim, p.velocity);
 
     this.arena.remoteTargets = this.remoteTargets();
     this.arena.stepBots(dt, (bot) =>
@@ -189,7 +189,6 @@ export class Deathmatch {
     if (out && !this.outWarned && f.alive) this.ctx.toast("Turn back: you're leaving the arena", 2);
     this.outWarned = out;
 
-    const p = this.ctx.player;
     this.session?.tick({
       x: p.feet.x,
       y: p.feet.y,
@@ -272,7 +271,7 @@ export class Deathmatch {
         this.syncViews();
       },
       fire: (from, m, age) => {
-        const w = this.weaponSettings[m.w as WeaponId];
+        const w = this.weaponSettings[m.w as ProjectileId];
         if (!w) return;
         this.arena.remoteShot(from, w, { x: m.x, y: m.y, z: m.z }, { x: m.vx, y: m.vy, z: m.vz }, age);
         this.ctx.audio.shot(w.id, { x: m.x, y: m.y, z: m.z });
@@ -285,7 +284,7 @@ export class Deathmatch {
         if (at) this.damageNumber(at, m.dmg, m.hp <= 0, m.midair);
       },
       died: (victim, by, w) => {
-        const weapon = this.weaponSettings[w as WeaponId] ?? { name: "the edge of the arena", id: "edge" };
+        const weapon = this.weaponSettings[w as ProjectileId] ?? { name: "the edge of the arena", id: "edge" };
         this.addFeed(by, victim, weapon as WeaponDef, false);
         this.arena.match.recordDeath(victim, by, this.arena.now());
         if (by === this.session?.selfId && victim !== by) this.ctx.toast(`You fragged ${this.nameOf(victim)}`, 1.5);
@@ -440,12 +439,12 @@ export class Deathmatch {
     const f = this.fighter;
     const el = this.el;
     const frac = f.health / f.settings.maxHealth;
-    el.hp.innerHTML = `<div class="fill" style="width:${Math.round(frac * 100)}%"></div><span>${Math.ceil(f.health)}</span>`;
+    setHtml(el.hp, `<div class="fill" style="width:${Math.round(frac * 100)}%"></div><span>${Math.ceil(f.health)}</span>`);
     el.hp.classList.toggle("low", frac < 0.3);
     const w = f.weapon;
     const ammo =
       f.switching > 0 ? "drawing…" : w.def.magazine > 0 ? (w.reloading > 0 ? "reloading…" : `${w.ammo} / ${w.def.magazine}`) : w.ready ? "ready" : "…";
-    el.weapon.innerHTML = `<b>${f.current === "disc" ? "1" : "2"}</b> ${w.def.name}<small>${ammo}</small>`;
+    setHtml(el.weapon, `<b>${f.current === "disc" ? "1" : "2"}</b> ${w.def.name}<small>${ammo} · F grenades ${f.grenades.ammo}</small>`);
 
     this.hitFlash = Math.max(this.hitFlash - dt * 6, 0);
     el.hit.style.opacity = String(Math.min(this.hitFlash, 1));
@@ -454,32 +453,38 @@ export class Deathmatch {
     el.hurt.style.opacity = String(this.hurtFlash * 0.6);
 
     const now = performance.now();
-    el.feed.innerHTML = this.feed.filter((x) => x.until > now).map((x) => `<div>${x.text}</div>`).join("");
+    setHtml(el.feed, this.feed.filter((x) => x.until > now).map((x) => `<div>${x.text}</div>`).join(""));
 
     el.dead.hidden = f.alive;
-    if (!f.alive) el.dead.innerHTML = `Fragged by <b>${escape(this.killedBy)}</b><small>Back in ${Math.max(Math.ceil(f.respawnIn), 0)}</small>`;
+    if (!f.alive) setHtml(el.dead, `Fragged by <b>${escape(this.killedBy)}</b><small>Back in ${Math.max(Math.ceil(f.respawnIn), 0)}</small>`);
 
     const m = this.arena.match;
     const ids = [this.me.id, ...this.arena.bots.map((b) => b.id), ...(this.session?.peers.keys() ?? [])];
     const board = m.board(ids);
     const mine = m.kills.get(this.me.id) ?? 0;
     const leader = board[0]!;
-    el.matchbar.innerHTML = m.over
+    setHtml(el.matchbar, m.over
       ? `<b>${escape(this.nameOf(m.winner!))}</b> wins · next match in ${Math.max(Math.ceil(this.settings.resultsTime - (this.arena.now() - m.endedAt)), 0)}`
-      : `First to ${m.target} · you ${mine}${leader.id !== this.me.id && leader.kills > 0 ? ` · ${escape(this.nameOf(leader.id))} ${leader.kills}` : ""}`;
+      : `First to ${m.target} · you ${mine}${leader.id !== this.me.id && leader.kills > 0 ? ` · ${escape(this.nameOf(leader.id))} ${leader.kills}` : ""}`);
 
     el.scores.hidden = !(this.showScores || m.over);
     if (!el.scores.hidden) {
-      el.scores.innerHTML =
-        `<table><tr><th></th><th>Player</th><th>Kills</th><th>Deaths</th></tr>` +
+      setHtml(el.scores, `<table><tr><th></th><th>Player</th><th>Kills</th><th>Deaths</th></tr>` +
         board
           .map((r, i) => `<tr${r.id === this.me.id ? ' class="self"' : ""}><td>${i + 1}</td><td style="color:${this.colourOf(r.id)}">${escape(this.nameOf(r.id))}</td><td>${r.kills}</td><td>${r.deaths}</td></tr>`)
           .join("") +
-        `</table>`;
+        `</table>`);
     }
   }
 }
 
 function escape(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+/** Set an element's HTML only when it changed: rewriting it every frame costs a style, layout and paint each time. */
+function setHtml(el: HTMLElement, html: string): void {
+  if (el.dataset.html === html) return;
+  el.dataset.html = html;
+  el.innerHTML = html;
 }

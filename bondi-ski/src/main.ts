@@ -56,6 +56,7 @@ type Action =
   | "weapon1"
   | "weapon2"
   | "swap"
+  | "grenade"
   | "scores";
 
 const bindings: Record<Action, string[]> = {
@@ -76,6 +77,8 @@ const bindings: Record<Action, string[]> = {
   fire: ["Mouse0"],
   weapon1: ["Digit1"],
   weapon2: ["Digit2"],
+  // F is also "back to the last gate", but only in the time trial.
+  grenade: ["KeyF"],
   swap: ["KeyQ", "WheelUp", "WheelDown"],
   scores: ["Tab"],
 };
@@ -84,7 +87,8 @@ const COURSE = "icebergs-tamarama";
 
 async function main() {
   const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+  // Multisampling on a high-density (Retina) screen costs a lot of GPU for little gain.
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: window.devicePixelRatio < 1.5, powerPreference: "high-performance" });
   const display = { renderScale: 1 };
   const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * display.renderScale);
   applyPixelRatio();
@@ -367,6 +371,7 @@ async function main() {
       spread: [0, 0.1, 0.001],
     };
     tuning.addGroup("Spinfusor", WEAPONS.disc, weapon);
+    tuning.addGroup("Impact Nitron", WEAPONS.grenade, { ...weapon, splashInner: [0, 20, 0.25], magazine: [0, 10, 1] });
     tuning.addGroup("Assault rifle", WEAPONS.rifle, { ...weapon, burst: [1, 6, 1], burstInterval: [0.02, 0.3, 0.005], magazine: [0, 120, 1], reload: [0, 5, 0.1] });
     tuning.addGroup("Health & weapons", dm.fighter.settings, { maxHealth: [100, 3000, 10], regenDelay: [0, 30, 0.5], regenRate: [0, 500, 5], respawnTime: [0, 10, 0.5], switchTime: [0, 2, 0.05], stowedReload: [0, 15, 0.5] });
     const match = tuning.addGroup("Match", dm.settings, { killTarget: [1, 100, 1], resultsTime: [2, 30, 1] });
@@ -464,7 +469,7 @@ async function main() {
 
       if (dm) {
         const pick = input.consumePresses("weapon1") > 0 ? "disc" : input.consumePresses("weapon2") > 0 ? "rifle" : input.consumePresses("swap") > 0 ? "swap" : null;
-        dm.tick(dt, { fire: input.isDown("fire"), weapon: pick, reload: restartPressed, scores: input.isDown("scores") });
+        dm.tick(dt, { fire: input.isDown("fire"), grenade: input.consumePresses("grenade") > 0, weapon: pick, reload: restartPressed, scores: input.isDown("scores") });
         world.step();
         rig.afterTick(player);
         topSpeed = Math.max(topSpeed, player.horizontalSpeed);
@@ -524,6 +529,7 @@ async function main() {
       rig.update(player, alpha, look.yaw, look.pitch, frameDt);
       water.update(elapsed);
       forceField?.update(camera.position, elapsed);
+      view.update(camera.position);
       // Keep the shadowed area around the player.
       const p = camera.position;
       sun.target.position.set(p.x, p.y - 10, p.z);
@@ -551,7 +557,8 @@ async function main() {
       energyEl.classList.toggle("low", jet.energy < 0.2);
       const hs = player.horizontalSpeed;
       const state = jet.active ? "jetting" : skiing ? "skiing" : player.grounded ? "ground" : "air";
-      speedEl.innerHTML = `${hs.toFixed(1)} m/s<small>${Math.round(hs * 3.6)} km/h · top ${topSpeed.toFixed(1)} · ${state}</small>`;
+      const speedHtml = `${hs.toFixed(1)} m/s<small>${Math.round(hs * 3.6)} km/h · top ${topSpeed.toFixed(1)} · ${state}</small>`;
+      if (speedEl.dataset.html !== speedHtml) speedEl.innerHTML = speedEl.dataset.html = speedHtml;
       // Refresh a few times a second so the number is readable.
       if (debug.fps && now - fpsShownAt > 250) {
         fpsShownAt = now;

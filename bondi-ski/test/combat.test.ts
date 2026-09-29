@@ -58,6 +58,32 @@ describe("switching weapons", () => {
   });
 });
 
+describe("inheritance", () => {
+  it("adds a share of your velocity to a shot, whichever way you're going", () => {
+    const aim = { x: 0, y: 0, z: -1 };
+    const moving = { x: 20, y: 4, z: -30 };
+    for (const [w, share] of [[WEAPONS.disc, 0.5], [WEAPONS.rifle, 0.3], [WEAPONS.grenade, 0.5]] as const) {
+      const v = launchVelocity(w, aim, moving, () => 0.5);
+      expect(w.inherit).toBe(share);
+      expect(v.x).toBeCloseTo(20 * share);
+      expect(v.y).toBeCloseTo(4 * share);
+      expect(v.z).toBeCloseTo(-w.speed - 30 * share);
+    }
+  });
+});
+
+describe("grenades", () => {
+  it("three per life, thrown one press at a time, restocked on respawn", () => {
+    const f = new Fighter();
+    let thrown = 0;
+    for (let i = 0; i < 10 / DT; i++) thrown += f.tickGrenade(i % 20 === 0, DT);
+    expect(thrown).toBe(3);
+    f.hurt(5000);
+    f.respawn();
+    expect(f.grenades.ammo).toBe(3);
+  });
+});
+
 describe("damage", () => {
   const disc = WEAPONS.disc;
   it("a direct disc hit takes most of someone's health; a midair takes 770, nearly all of it", () => {

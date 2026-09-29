@@ -13,6 +13,8 @@ import { sandstoneMaterial } from "./sandstone";
 export interface CourseView {
   root: THREE.Group;
   gates: GateView[];
+  /** Once a frame: pick each terrain chunk's detail from the camera's position. */
+  update(camera: THREE.Vector3): void;
 }
 
 export interface GateView {
@@ -27,7 +29,8 @@ const rand = (n: number) => {
 
 export function buildCourseView(course: CourseData, route: Route): CourseView {
   const root = new THREE.Group();
-  root.add(terrainMesh(course));
+  const terrain = terrainMesh(course);
+  root.add(terrain.root);
   root.add(walkMesh(course));
   root.add(buildingsMesh(course));
   root.add(poolsMesh(course));
@@ -37,7 +40,7 @@ export function buildCourseView(course: CourseData, route: Route): CourseView {
   root.add(railsMesh(route));
   const gates = route.gates.map((g, i) => gateView(course, route, i, g.name));
   for (const g of gates) root.add(g.root);
-  return { root, gates };
+  return { root, gates, update: (camera) => terrain.update(camera) };
 }
 
 // ------------------------------------------------------------------ terrain
@@ -53,7 +56,20 @@ const SURFACE_COLOURS: Record<number, THREE.Color> = {
   [Surface.scrub]: new THREE.Color("#5f7f3e"),
 };
 
-function terrainMesh(course: CourseData): THREE.Mesh {
+/** Terrain chunk size (cells), the detail levels (every nth cell) and how far out each is used (m). */
+const CHUNK = 48;
+const LOD_STEPS = [1, 2, 4, 8];
+const LOD_RANGES = [200, 420, 850];
+/** How far chunk edges hang down, to cover the cracks where detail levels meet (m). */
+const SKIRT = 4;
+
+/**
+ * The ground: one grid of vertices (3 m apart), drawn as chunks that each pick a level
+ * of detail by distance, so only the ground near you is drawn at full resolution. All
+ * chunks share the vertex data; each level is just a different index list, plus skirts
+ * hanging from the chunk edges so coarse and fine neighbours don't show gaps.
+ */
+function terrainMesh(course: CourseData): { root: THREE.Group; update(camera: THREE.Vector3): void } {
   const t = course.terrain;
   const n = t.cols * t.rows;
   // Per-cell colour and rockiness, then a blur so 4 m cells don't read as pixels.
@@ -105,16 +121,122 @@ function terrainMesh(course: CourseData): THREE.Mesh {
       idx.push(a, a + t.cols, a + 1, a + 1, a + t.cols, a + t.cols + 1);
     }
   }
-  const geom = new THREE.BufferGeometry();
-  geom.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-  geom.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  geom.setAttribute("rock", new THREE.BufferAttribute(rock, 1));
-  geom.setIndex(idx);
-  geom.computeVertexNormals();
-  const mesh = new THREE.Mesh(geom, sandstoneMaterial({ perVertex: true, vertexColors: true }));
-  mesh.receiveShadow = true;
-  mesh.name = "terrain";
-  return mesh;
+  // Normals from the full-resolution grid, so every level of detail is lit the same.
+  const full = new THREE.BufferGeometry();
+  full.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  full.setIndex(idx);
+  full.computeVertexNormals();
+  const nrm = full.getAttribute("normal").array as Float32Array;
+  full.dispose();
+
+  // Skirt vertices: a lowered copy of every vertex on a chunk edge.
+  const onEdge = (r: number, k: number) => r % CHUNK === 0 || k % CHUNK === 0 || r === t.rows - 1 || k === t.cols - 1;
+  const skirtOf = new Int32Array(n).fill(-1);
+  let extra = 0;
+  for (let r = 0; r < t.rows; r++) for (let k = 0; k < t.cols; k++) if (onEdge(r, k)) skirtOf[r * t.cols + k] = n + extra++;
+  const total = n + extra;
+  const grow = (a: Float32Array, size: number) => {
+    const out = new Float32Array(total * size);
+    out.set(a);
+    for (let i = 0; i < n; i++) {
+      const j = skirtOf[i]!;
+      if (j >= 0) for (let c = 0; c < size; c++) out[j * size + c] = a[i * size + c]!;
+    }
+    return out;
+  };
+  const allPos = grow(pos, 3);
+  for (let i = 0; i < n; i++) if (skirtOf[i]! >= 0) allPos[skirtOf[i]! * 3 + 1]! -= SKIRT;
+  const attrs = {
+    position: new THREE.BufferAttribute(allPos, 3),
+    normal: new THREE.BufferAttribute(grow(nrm, 3), 3),
+    color: new THREE.BufferAttribute(grow(col, 3), 3),
+    rock: new THREE.BufferAttribute(grow(rock, 1), 1),
+  };
+
+  const material = sandstoneMaterial({ perVertex: true, vertexColors: true });
+  const root = new THREE.Group();
+  root.name = "terrain";
+  const chunks: { centre: THREE.Vector2; half: number; levels: THREE.Mesh[] }[] = [];
+  /** Every `step`th index from a to b, always ending on b. */
+  const span = (a: number, b: number, step: number) => {
+    const out: number[] = [];
+    for (let v = a; v < b; v += step) out.push(v);
+    out.push(b);
+    return out;
+  };
+  for (let r0 = 0; r0 < t.rows - 1; r0 += CHUNK) {
+    for (let k0 = 0; k0 < t.cols - 1; k0 += CHUNK) {
+      const r1 = Math.min(r0 + CHUNK, t.rows - 1);
+      const k1 = Math.min(k0 + CHUNK, t.cols - 1);
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let r = r0; r <= r1; r++) {
+        for (let k = k0; k <= k1; k++) {
+          lo = Math.min(lo, t.heights[r * t.cols + k]!);
+          hi = Math.max(hi, t.heights[r * t.cols + k]!);
+        }
+      }
+      const box = new THREE.Box3(
+        new THREE.Vector3(t.x0 + k0 * t.cell, lo - SKIRT, t.z0 + r0 * t.cell),
+        new THREE.Vector3(t.x0 + k1 * t.cell, hi, t.z0 + r1 * t.cell),
+      );
+      const sphere = box.getBoundingSphere(new THREE.Sphere());
+      const levels = LOD_STEPS.map((step) => {
+        const rs = span(r0, r1, step);
+        const ks = span(k0, k1, step);
+        const at = (r: number, k: number) => r * t.cols + k;
+        const ix: number[] = [];
+        for (let a = 0; a + 1 < rs.length; a++) {
+          for (let b = 0; b + 1 < ks.length; b++) {
+            const p00 = at(rs[a]!, ks[b]!);
+            const p01 = at(rs[a]!, ks[b + 1]!);
+            const p10 = at(rs[a + 1]!, ks[b]!);
+            const p11 = at(rs[a + 1]!, ks[b + 1]!);
+            ix.push(p00, p10, p01, p01, p10, p11);
+          }
+        }
+        // Skirts along all four edges, wound both ways so they show from either side.
+        const edge = (list: number[]) => {
+          for (let e = 0; e + 1 < list.length; e++) {
+            const a = list[e]!;
+            const b = list[e + 1]!;
+            const sa = skirtOf[a]!;
+            const sb = skirtOf[b]!;
+            ix.push(a, sa, b, b, sa, sb, a, b, sa, b, sb, sa);
+          }
+        };
+        edge(ks.map((k) => at(r0, k)));
+        edge(ks.map((k) => at(r1, k)));
+        edge(rs.map((r) => at(r, k0)));
+        edge(rs.map((r) => at(r, k1)));
+        const geom = new THREE.BufferGeometry();
+        for (const [name, attr] of Object.entries(attrs)) geom.setAttribute(name, attr);
+        geom.setIndex(ix);
+        geom.boundingBox = box;
+        geom.boundingSphere = sphere;
+        const mesh = new THREE.Mesh(geom, material);
+        mesh.receiveShadow = true;
+        mesh.visible = false;
+        mesh.matrixAutoUpdate = false;
+        root.add(mesh);
+        return mesh;
+      });
+      const centre = new THREE.Vector2(t.x0 + ((k0 + k1) / 2) * t.cell, t.z0 + ((r0 + r1) / 2) * t.cell);
+      chunks.push({ centre, half: (CHUNK * t.cell) / 2, levels });
+    }
+  }
+  const update = (camera: THREE.Vector3) => {
+    for (const c of chunks) {
+      // Distance to the chunk's square, not its middle, so you never stand on a coarse one.
+      const dx = Math.max(Math.abs(camera.x - c.centre.x) - c.half, 0);
+      const dz = Math.max(Math.abs(camera.z - c.centre.y) - c.half, 0);
+      const d = Math.hypot(dx, dz);
+      let level = LOD_RANGES.findIndex((range) => d < range);
+      if (level < 0) level = LOD_STEPS.length - 1;
+      c.levels.forEach((m, i) => (m.visible = i === level));
+    }
+  };
+  return { root, update };
 }
 
 /** The coastal walk itself: a pale concrete ribbon, 2.4 m wide, draped over the terrain. */
@@ -237,6 +359,26 @@ function poolsMesh(course: CourseData): THREE.Group {
 
 // ------------------------------------------------------------------ trees and props
 
+/** Side of the tiles scattered things are grouped into (m), so whole tiles can be culled. */
+const TILE = 300;
+
+/**
+ * Split `items` into square tiles by position. One instanced mesh for everything can't be
+ * culled (its bounds are the whole map), so every tree would be drawn in every pass,
+ * the shadow map's included; per-tile meshes let the camera and the sun skip most of them.
+ */
+function tiles<T>(items: T[], at: (item: T) => { x: number; z: number }): T[][] {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const p = at(item);
+    const key = `${Math.floor(p.x / TILE)},${Math.floor(p.z / TILE)}`;
+    let list = map.get(key);
+    if (!list) map.set(key, (list = []));
+    list.push(item);
+  }
+  return [...map.values()];
+}
+
 function treesMesh(course: CourseData): THREE.Group {
   const group = new THREE.Group();
   const trees = course.trees;
@@ -254,8 +396,13 @@ function treesMesh(course: CourseData): THREE.Group {
 
   const pines = trees.filter((_, i) => rand(i * 3.3) < 0.55);
   const rounds = trees.filter((_, i) => rand(i * 3.3) >= 0.55);
-  const place = (list: typeof trees, geom: THREE.BufferGeometry, colour: string, shadow: boolean) => {
-    const mesh = new THREE.InstancedMesh(geom, new THREE.MeshLambertMaterial({ color: colour }), list.length);
+  const materials = new Map<string, THREE.Material>();
+  const place = (all: typeof trees, geom: THREE.BufferGeometry, colour: string, shadow: boolean) => {
+    if (!materials.has(colour)) materials.set(colour, new THREE.MeshLambertMaterial({ color: colour }));
+    for (const list of tiles(all, ([x, , z]) => ({ x, z }))) placeTile(list, geom, materials.get(colour)!, shadow);
+  };
+  const placeTile = (list: typeof trees, geom: THREE.BufferGeometry, material: THREE.Material, shadow: boolean) => {
+    const mesh = new THREE.InstancedMesh(geom, material, list.length);
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     list.forEach(([x, y, z], i) => {
@@ -279,7 +426,7 @@ function treesMesh(course: CourseData): THREE.Group {
  * Coastal heath: low, rounded banksia and saltbush clumps scattered over the scrub
  * cells between the suburbs and the cliffs. Decoration only: you ski through them.
  */
-function heathMesh(course: CourseData): THREE.InstancedMesh {
+function heathMesh(course: CourseData): THREE.Group {
   const t = course.terrain;
   const spots: [number, number, number, number][] = [];
   for (let r = 0; r < t.rows; r++) {
@@ -292,19 +439,25 @@ function heathMesh(course: CourseData): THREE.InstancedMesh {
     }
   }
   const geom = new THREE.IcosahedronGeometry(1, 0).scale(1.1, 0.6, 1.1).translate(0, 0.3, 0);
-  const mesh = new THREE.InstancedMesh(geom, new THREE.MeshLambertMaterial({ color: "#ffffff" }), spots.length);
+  const material = new THREE.MeshLambertMaterial({ color: "#ffffff" });
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const c = new THREE.Color();
   const greens = ["#5f7a3a", "#6f8646", "#4f6b35", "#7d8a4d", "#8a8f5a"].map((h) => new THREE.Color(h));
-  spots.forEach(([x, y, z, s], k) => {
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand(k * 5.3) * Math.PI * 2);
-    m.compose(new THREE.Vector3(x, y - 0.1, z), q, new THREE.Vector3(s, s * (0.7 + rand(k) * 0.6), s));
-    mesh.setMatrixAt(k, m);
-    mesh.setColorAt(k, c.copy(greens[k % greens.length]!));
-  });
-  mesh.receiveShadow = true;
-  return mesh;
+  const group = new THREE.Group();
+  const numbered = spots.map((s, k) => [...s, k] as const);
+  for (const list of tiles(numbered, ([x, , z]) => ({ x, z }))) {
+    const mesh = new THREE.InstancedMesh(geom, material, list.length);
+    list.forEach(([x, y, z, s, k], i) => {
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand(k * 5.3) * Math.PI * 2);
+      m.compose(new THREE.Vector3(x, y - 0.1, z), q, new THREE.Vector3(s, s * (0.7 + rand(k) * 0.6), s));
+      mesh.setMatrixAt(i, m);
+      mesh.setColorAt(i, c.copy(greens[k % greens.length]!));
+    });
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  return group;
 }
 
 function propsMesh(course: CourseData): THREE.Group {

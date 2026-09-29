@@ -4,10 +4,12 @@
  * starting point modelled on T:A (all live in the Tuning panel).
  */
 export type WeaponId = "disc" | "rifle";
+/** Everything that can be fired or thrown: the two guns and the grenade on its own key. */
+export type ProjectileId = WeaponId | "grenade";
 
 export interface WeaponDef {
   /** "edge" is the arena boundary, for the kill feed. */
-  id: WeaponId | "edge";
+  id: ProjectileId | "edge";
   name: string;
   /** Muzzle speed (m/s). */
   speed: number;
@@ -47,7 +49,7 @@ export interface WeaponDef {
   spread: number;
 }
 
-export const WEAPONS: Record<WeaponId, WeaponDef> = {
+export const WEAPONS: Record<ProjectileId, WeaponDef> = {
   // Spinfusor: the Tribes disc. Slow, splashy, one per second; a midair direct hit does
   // 770, close to a kill from full health but not quite.
   disc: {
@@ -78,6 +80,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     id: "rifle",
     name: "Assault Rifle",
     speed: 230,
+    // T:A's assault rifles keep less of your speed than the disc.
     inherit: 0.3,
     gravity: 0,
     lifetime: 1.4,
@@ -96,6 +99,32 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     magazine: 24,
     reload: 1.7,
     spread: 0.008,
+  },
+  // Impact grenade, like T:A's Nitron: thrown in an arc, bursts on whatever it touches,
+  // with a big shove (for grenade jumps too). Three per life, thrown with F whatever
+  // you're holding.
+  grenade: {
+    id: "grenade",
+    name: "Impact Nitron",
+    speed: 30,
+    inherit: 0.5,
+    gravity: 16,
+    lifetime: 5,
+    radius: 0.2,
+    damage: 450,
+    splashRadius: 8,
+    splashInner: 1.5,
+    splashFalloff: 0.3,
+    midairBonus: 1,
+    selfDamage: 0.35,
+    impulse: 18,
+    selfImpulse: 1.5,
+    burst: 1,
+    burstInterval: 0,
+    cooldown: 0.8,
+    magazine: 3,
+    reload: 0,
+    spread: 0,
   },
 };
 
@@ -122,7 +151,8 @@ export class WeaponState {
   }
 
   startReload(): void {
-    if (this.def.magazine > 0 && this.ammo < this.def.magazine && this.reloading <= 0) {
+    // A weapon with no reload time (the grenades) is restocked only when you respawn.
+    if (this.def.reload > 0 && this.def.magazine > 0 && this.ammo < this.def.magazine && this.reloading <= 0) {
       this.reloading = this.def.reload;
       this.burstLeft = 0;
     }

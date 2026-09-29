@@ -151,6 +151,9 @@ export class CoastAudio {
       osc.start(t);
       osc.stop(t + 0.32);
       this.noiseBurst(out, 0.09, 0.35, 700);
+    } else if (weapon === "grenade") {
+      // A soft lob.
+      this.noiseBurst(out, 0.12, 0.25, 400, "brown");
     } else {
       this.noiseBurst(out, 0.05, 0.22, 3000);
     }
