@@ -61,7 +61,12 @@ export function sandstoneMaterial(options: { perVertex: boolean; vertexColors?: 
       .replace(
         "#include <color_fragment>",
         `#include <color_fragment>
-        diffuseColor.rgb = mix(diffuseColor.rgb, strata(vStrataPos), ${options.perVertex ? "vRock" : "1.0"});`,
+        ${
+          options.perVertex
+            ? // Most of the ground isn't rock: skip the (costly) strata there.
+              "if (vRock > 0.001) diffuseColor.rgb = mix(diffuseColor.rgb, strata(vStrataPos), vRock);"
+            : "diffuseColor.rgb = strata(vStrataPos);"
+        }`,
       );
   };
   return material;

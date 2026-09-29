@@ -100,6 +100,18 @@ describe("arena", () => {
     expect(Math.hypot(impacts[0]!.x - map.centre.x, impacts[0]!.z - map.centre.z)).toBeCloseTo(map.radius, -1);
   });
 
+  it("an impact grenade arcs down and bursts where it lands", async () => {
+    const { a, player, step, impacts } = await arena("marks-park");
+    step(0.5);
+    const eye = { x: player.feet.x, y: player.feet.y + player.eyeHeight, z: player.feet.z };
+    a.fire("me", WEAPONS.grenade, eye, aimOf(0, 0.3), { x: 0, y: 0, z: 0 });
+    step(4);
+    expect(impacts.length).toBe(1);
+    const d = Math.hypot(impacts[0]!.x - eye.x, impacts[0]!.z - eye.z);
+    expect(d).toBeGreaterThan(10);
+    expect(d).toBeLessThan(80);
+  });
+
   it("target of a local fighter uses their hull", async () => {
     const { me } = await arena();
     const t = targetOf(me);

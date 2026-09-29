@@ -14,6 +14,9 @@ export class ProjectileViews {
   private readonly glowGeom = new THREE.SphereGeometry(0.55, 12, 8);
   private readonly tracerGeom = new THREE.BoxGeometry(0.05, 0.05, 2.2);
   private readonly tracerMat = new THREE.MeshBasicMaterial({ color: "#ffe28a" });
+  private readonly grenadeGeom = new THREE.SphereGeometry(0.2, 10, 8);
+  private readonly grenadeMat = new THREE.MeshBasicMaterial({ color: "#ff9a3c" });
+  private readonly grenadeGlow = new THREE.MeshBasicMaterial({ color: "#ff7a1a", transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending });
 
   update(list: Projectile[], alpha: number, dt: number): void {
     const live = new Set<string>();
@@ -21,7 +24,7 @@ export class ProjectileViews {
       live.add(p.id);
       let m = this.meshes.get(p.id);
       if (!m) {
-        m = p.weapon.id === "disc" ? this.disc() : new THREE.Mesh(this.tracerGeom, this.tracerMat);
+        m = p.weapon.id === "disc" ? this.disc() : p.weapon.id === "grenade" ? this.grenade() : new THREE.Mesh(this.tracerGeom, this.tracerMat);
         this.meshes.set(p.id, m);
         this.root.add(m);
       }
@@ -29,7 +32,7 @@ export class ProjectileViews {
       m.position.set(p.prev.x + (p.pos.x - p.prev.x) * alpha, p.prev.y + (p.pos.y - p.prev.y) * alpha, p.prev.z + (p.pos.z - p.prev.z) * alpha);
       if (p.weapon.id === "disc") {
         m.children[0]!.rotation.y += dt * 30;
-      } else {
+      } else if (p.weapon.id === "rifle") {
         m.lookAt(m.position.x + p.vel.x, m.position.y + p.vel.y, m.position.z + p.vel.z);
       }
     }
@@ -38,6 +41,14 @@ export class ProjectileViews {
       m.removeFromParent();
       this.meshes.delete(id);
     }
+  }
+
+  private grenade(): THREE.Object3D {
+    const g = new THREE.Group();
+    const glow = new THREE.Mesh(this.glowGeom, this.grenadeGlow);
+    glow.scale.setScalar(0.6);
+    g.add(new THREE.Mesh(this.grenadeGeom, this.grenadeMat), glow);
+    return g;
   }
 
   private disc(): THREE.Object3D {
