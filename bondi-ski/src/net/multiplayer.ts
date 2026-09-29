@@ -201,7 +201,7 @@ export class Multiplayer {
     if (inRoom) {
       const n = (this.session?.peers.size ?? 0) + 1;
       this.lobby.querySelector(".status")!.textContent =
-        `Room ${this.room} · ${n} ${n === 1 ? "skier" : "skiers"} here · connects ${this.reach === "internet" ? "over the internet" : "tabs on this computer only"}. Press Enter in game to start a race.`;
+        `Room ${this.room} · ${n} ${n === 1 ? "skier" : "skiers"} here · connects ${this.reach === "internet" ? "over the internet" : this.reach === "game server" ? "through the game server" : "tabs on this computer only"}. Press Enter in game to start a race.`;
     }
   }
 }

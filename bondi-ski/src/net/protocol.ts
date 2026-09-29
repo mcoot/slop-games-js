@@ -28,8 +28,16 @@ export type NetMessage =
   | { t: "hurt"; by: string; w: string; dmg: number; hp: number; midair: boolean }
   /** I died. */
   | { t: "died"; by: string; w: string }
-  /** A new match: scores back to zero, first to `target` kills wins. */
-  | { t: "match"; id: string; target: number };
+  /**
+   * A new match: scores back to zero, first to `target` kills wins. From a server, joining
+   * mid-match, `board` carries the scores so far ([id, kills, deaths]) and `teamKills`.
+   */
+  | { t: "match"; id: string; target: number; board?: [string, number, number][]; teamKills?: [number, number] }
+  // ---- From a game server (it judges damage, so these only ever come from it)
+  /** You were hurt: your health is now `hp`; `ix/iy/iz` is the knockback (not for your own blasts, you've pushed yourself already). */
+  | { t: "hit"; by: string; w: string; dmg: number; hp: number; midair: boolean; ix: number; iy: number; iz: number }
+  /** Back in: respawn here. */
+  | { t: "spawn"; x: number; y: number; z: number };
 
 /** Messages are plain JSON; drop anything that isn't one of ours. */
 export function isNetMessage(v: unknown): v is NetMessage {
@@ -47,6 +55,8 @@ export function isNetMessage(v: unknown): v is NetMessage {
     t === "fire" ||
     t === "hurt" ||
     t === "died" ||
-    t === "match"
+    t === "match" ||
+    t === "hit" ||
+    t === "spawn"
   );
 }

@@ -52,7 +52,7 @@ export class Lobby {
   inviteLink(): string {
     const url = new URL(location.href);
     const keep = new URLSearchParams();
-    for (const k of ["map", "teams", "net"]) {
+    for (const k of ["map", "teams", "net", "server"]) {
       const v = url.searchParams.get(k);
       if (v !== null) keep.set(k, v);
     }

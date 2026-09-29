@@ -43,6 +43,12 @@ export class Arena {
   readonly radius: number;
   /** Remote fighters as targets (drawn positions), set by the network layer each tick. */
   remoteTargets: Target[] = [];
+  /**
+   * A game server judges damage (in a server room): blasts here only push you with your
+   * own shots (disc jumps can't wait for the server); everything else, damage, the edge,
+   * the sea and respawning, comes from the server.
+   */
+  refereed = false;
   /** Teammates' blasts push you but don't hurt (always false in a free-for-all). */
   sameTeam: (a: string, b: string) => boolean = () => false;
   private seq = 0;
@@ -129,6 +135,7 @@ export class Arena {
       for (const l of locals) {
         if (!l.fighter.alive) continue;
         const own = impact.projectile.owner === l.id;
+        if (this.refereed && !own) continue;
         const direct = impact.target?.id === l.id;
         const t = targetOf(l);
         // Splash doesn't go through walls, hills or buildings.
@@ -139,11 +146,16 @@ export class Arena {
         l.body.velocity.y += hit.impulse.y;
         l.body.velocity.z += hit.impulse.z;
         if (hit.impulse.y > 2) l.body.grounded = false;
+        if (this.refereed) continue;
         if (!own && this.sameTeam(impact.projectile.owner, l.id)) continue;
         this.damage(l, impact.projectile.owner, w, hit);
       }
     }
     for (const l of locals) {
+      if (this.refereed) {
+        l.fighter.tick(dt);
+        continue;
+      }
       // Out past the arena edge: hurt until you come back.
       const d = Math.hypot(l.body.feet.x - this.centre.x, l.body.feet.z - this.centre.z);
       if (l.fighter.alive && d > this.radius) {
@@ -157,27 +169,9 @@ export class Arena {
     }
   }
 
-  /**
-   * Is the target out in the open from a blast at `point`: a clear line to their feet,
-   * middle or head? Anything solid in between (a wall, a crest, a building) shields them.
-   */
   private exposed(point: V3, t: Target, radius: number): boolean {
     const hulls = this.hulls();
-    for (const up of [0.15, 0.5, 0.9]) {
-      const dx = t.feet.x - point.x;
-      const dy = t.feet.y + t.height * up - point.y;
-      const dz = t.feet.z - point.z;
-      const len = Math.hypot(dx, dy, dz);
-      if (len > radius + t.height) continue;
-      // Start a little off the surface the blast is on, so it doesn't block itself.
-      const skip = Math.min(0.15, len / 2);
-      const dir = { x: dx / len, y: dy / len, z: dz / len };
-      const from = { x: point.x + dir.x * skip, y: point.y + dir.y * skip, z: point.z + dir.z * skip };
-      const ray = new RAPIER.Ray(from, dir);
-      const hit = this.world.castRay(ray, len - skip, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, undefined, (c) => !hulls.has(c.handle));
-      if (!hit) return true;
-    }
-    return false;
+    return exposedTo(this.world, point, t, radius, (c) => hulls.has(c.handle));
   }
 
   /** Seconds of simulation so far. */
@@ -195,8 +189,8 @@ export class Arena {
     }
   }
 
-  respawn(l: Local): void {
-    const at = this.spawnPoint();
+  /** Back in, at `at` (a server's choice) or a spawn point away from everyone. */
+  respawn(l: Local, at: V3 = this.spawnPoint()): void {
     l.body.teleport(at);
     l.jet.reset();
     l.fighter.respawn();
@@ -205,20 +199,8 @@ export class Arena {
 
   /** A spawn point well away from everyone (best of a few random picks). */
   spawnPoint(): V3 {
-    const others = [...this.locals().map((l) => l.body.feet), ...this.remoteTargets.map((t) => t.feet)];
-    let best = this.spawns[0]!;
-    let bestD = -1;
-    for (let k = 0; k < 6; k++) {
-      const s = this.spawns[Math.floor(this.random() * this.spawns.length)]!;
-      const d = Math.min(Infinity, ...others.map((o) => Math.hypot(o.x - s.x, o.z - s.z)));
-      if (d > bestD) {
-        bestD = d;
-        best = s;
-      }
-    }
-    return { ...best };
+    return spawnAwayFrom(this.spawns, [...this.locals().map((l) => l.body.feet), ...this.remoteTargets.map((t) => t.feet)], this.random);
   }
-
 }
 
 export const OUT_OF_BOUNDS: WeaponDef = {
@@ -260,3 +242,40 @@ export function aimOf(yaw: number, pitch: number): V3 {
   return { x: -Math.sin(yaw) * c, y: Math.sin(pitch), z: -Math.cos(yaw) * c };
 }
 
+/**
+ * Is the target out in the open from a blast at `point`: a clear line to their feet,
+ * middle or head? Anything solid in between (a wall, a crest, a building) shields them.
+ * `ignore` skips colliders that don't count (players' own hulls).
+ */
+export function exposedTo(world: PhysicsWorld, point: V3, t: Target, radius: number, ignore: (c: RAPIER.Collider) => boolean): boolean {
+  for (const up of [0.15, 0.5, 0.9]) {
+    const dx = t.feet.x - point.x;
+    const dy = t.feet.y + t.height * up - point.y;
+    const dz = t.feet.z - point.z;
+    const len = Math.hypot(dx, dy, dz);
+    if (len > radius + t.height) continue;
+    // Start a little off the surface the blast is on, so it doesn't block itself.
+    const skip = Math.min(0.15, len / 2);
+    const dir = { x: dx / len, y: dy / len, z: dz / len };
+    const from = { x: point.x + dir.x * skip, y: point.y + dir.y * skip, z: point.z + dir.z * skip };
+    const ray = new RAPIER.Ray(from, dir);
+    const hit = world.castRay(ray, len - skip, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, undefined, (c) => !ignore(c));
+    if (!hit) return true;
+  }
+  return false;
+}
+
+/** A spawn point well away from `others` (the best of a few random picks). */
+export function spawnAwayFrom(spawns: V3[], others: V3[], random: () => number): V3 {
+  let best = spawns[0]!;
+  let bestD = -1;
+  for (let k = 0; k < 6; k++) {
+    const s = spawns[Math.floor(random() * spawns.length)]!;
+    const d = Math.min(Infinity, ...others.map((o) => Math.hypot(o.x - s.x, o.z - s.z)));
+    if (d > bestD) {
+      bestD = d;
+      best = s;
+    }
+  }
+  return { ...best };
+}

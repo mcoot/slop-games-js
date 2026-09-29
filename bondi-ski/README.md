@@ -117,12 +117,40 @@ free-for-all or teams: everyone else's page follows them there.
 | `src/net/combat.ts` | `CombatSession`: positions, shots, damage and deaths between players |
 | `src/dm/` | The game side: pre-match screen (map, bots), HUD, kill feed, scores, rooms; `src/view/combat.ts` draws projectiles, blasts, fighters and your weapon |
 
-Netcode: every client simulates every projectile from the shots it's told about
-(fast-forwarded by half the round trip), and **each player judges their own damage**:
-if a disc missed you on your screen, it missed. You then tell the room how much you
-took and whether you died; everyone counts kills from those reports, so the scores
-agree. The shooter gets hit markers from the victim's report. There's no server, so
-a player could cheat; fine among friends.
+| `src/combat/referee.ts` | The fight as the game server judges it: everyone's projectiles, damage, deaths, respawns and the score |
+| `src/net/predict.ts` | Carrying a player's last state forward to now (velocity, gravity in the air) |
+
+Netcode: other players are drawn and targeted **where they are now**, predicted from
+their last state (velocity, plus gravity in the air), not where they were a fraction of a
+second ago; corrections fade out over ~80 ms. At skiing speed the difference is metres,
+so without it you can't hit anyone moving. Tuning > Network turns it off to compare.
+Every client simulates every projectile it's told about (fast-forwarded by the sender's
+latency). Then there are two ways to judge damage:
+
+- **Peer to peer** (the default): each player judges their own damage, reports it to the
+  room, and everyone counts kills from those reports. No server, so a player could cheat.
+- **Game server** (`?net=server`): the server (`server/`) flies every projectile itself
+  against where each player is now, and owns health, deaths, respawns and the score.
+  Players still move themselves (so skiing and disc jumps feel instant); your own blasts
+  push you straight away, anything else's knockback arrives from the server. `?server=`
+  points at another server, e.g. `?net=server&server=ws://localhost:8787` locally.
+
+### The game server
+
+A small Node process (`server/main.ts`): rooms over WebSockets, messages passed on
+between players like a peer-to-peer room, and in a deathmatch a `Referee` on the room
+host's map. It builds every map's collision from `public/course` and `public/maps` at
+start-up, exactly as the game does. Weapon numbers are the defaults in
+`src/combat/weapons.ts`: tuning them in your browser doesn't change the server.
+
+```sh
+pnpm server             # in bondi-ski/: bundle to dist-server/ and run on :8787
+pnpm deploy-server      # deploy to fly.io (server/fly.toml, app slop-bondi-ski, Sydney)
+```
+
+The first deploy needs `fly apps create slop-bondi-ski` (or another name: then change
+`app` in `server/fly.toml` and `DEFAULT_SERVER` in `src/net/server.ts`). It runs one
+machine, which sleeps when nobody's connected and wakes on the first connection.
 
 ## Running it
 
