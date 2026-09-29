@@ -5,6 +5,8 @@ import { PlayerController, yawBasis, type MoveCommand } from "@slop/fps-controll
 import { parseCourse, terrainNormal, type CourseJson } from "../src/course/data";
 import { buildRoute } from "../src/course/route";
 import { buildCoursePhysics } from "../src/course/physics";
+import { buildArenaStructures, clearRoute, loadArenaFile, stampArena } from "../src/course/arenaLevel";
+import type { MapDef } from "../src/maps";
 import { Jetpack } from "../src/jetpack";
 import { bondiSkiMovement } from "../src/movement";
 
@@ -19,12 +21,24 @@ export function readCourse(name = "icebergs-tamarama") {
 
 export type BotCommand = Partial<MoveCommand> & { jet?: boolean };
 
-/** The course's physics with a skier on it, stepped the way the game steps it. */
-export async function makeCourse() {
+export function readMapGlb(level: string): ArrayBuffer {
+  const bytes = readFileSync(fileURLToPath(new URL(`../public/maps/${level}.glb`, import.meta.url)));
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
+
+/**
+ * The course's physics with a skier on it, stepped the way the game steps it. With a
+ * Blender-built map, set into the course the way the game does it (`arenaSpawns` are its markers).
+ */
+export async function makeCourse(map?: MapDef) {
   const course = readCourse();
+  const file = map?.level ? await loadArenaFile(readMapGlb(map.level), course) : null;
+  if (file) stampArena(course, map!.centre, map!.radius, file);
   const route = buildRoute(course);
+  if (file) clearRoute(route, map!.centre, map!.radius);
   const world = await createPhysicsWorld();
   const physics = buildCoursePhysics(world, course, route);
+  const arenaSpawns = file ? buildArenaStructures(world, file, null).spawns : undefined;
   world.step();
   const spawn = route.respawn(0);
   const player = new PlayerController(world, { ...bondiSkiMovement }, spawn.position);
@@ -41,5 +55,5 @@ export async function makeCourse() {
     player.tick(cmd, DT);
     world.step();
   };
-  return { course, route, world, player, jet, step, spawn };
+  return { course, route, world, player, jet, step, spawn, arenaSpawns };
 }

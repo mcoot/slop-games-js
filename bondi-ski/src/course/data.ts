@@ -41,6 +41,8 @@ export interface Terrain {
 
 export interface CourseData extends Omit<CourseJson, "terrain"> {
   terrain: Terrain;
+  /** Per `path` point: 1 where the walk isn't drawn (a map built over it). */
+  pathHidden?: Uint8Array;
 }
 
 /** Parse the course from its JSON and binary files (fetched in the browser, read from disk in tests). */

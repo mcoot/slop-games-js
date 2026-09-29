@@ -18,6 +18,11 @@ export interface MapDef {
   radius: number;
   /** A solid force field at `radius`; otherwise the edge only hurts. */
   walled: boolean;
+  /**
+   * Built in Blender: `public/maps/<level>.glb` replaces the ground inside the wall and
+   * brings its own structures and spawns (see `course/arenaLevel.ts`).
+   */
+  level?: string;
 }
 
 export const MAPS: MapDef[] = [
@@ -28,6 +33,15 @@ export const MAPS: MapDef[] = [
     centre: { x: 205, z: 115 },
     radius: 115,
     walled: true,
+  },
+  {
+    id: "sculpture-park",
+    title: "Sculpture Park",
+    blurb: "Marks Park rebuilt for a fight during Sculptures by the Sea: a walled sandstone compound at each end, a ski valley of sculptures between, walled in.",
+    centre: { x: 201, z: 111 },
+    radius: 125,
+    walled: true,
+    level: "sculpture-park",
   },
   {
     id: "bondi-beach",
@@ -62,7 +76,8 @@ export interface ArenaLayout {
   spawns: V3[];
 }
 
-export function layoutFor(map: MapDef, course: CourseData, route: Route): ArenaLayout {
+/** `spawns` are the map's own (a Blender-built map's markers); otherwise they're worked out. */
+export function layoutFor(map: MapDef, course: CourseData, route: Route, spawns?: V3[]): ArenaLayout {
   if (!map.walled) {
     // The coastal walk: the middle of the course, spawns along the walk.
     const mid = route.samples[Math.floor(route.samples.length / 2)]!;
@@ -70,7 +85,7 @@ export function layoutFor(map: MapDef, course: CourseData, route: Route): ArenaL
   }
   const t = course.terrain;
   const { x, z } = map.centre;
-  return { map, centre: { x, y: heightAt(t, x, z), z }, radius: map.radius, walled: true, spawns: ringSpawns(course, map) };
+  return { map, centre: { x, y: heightAt(t, x, z), z }, radius: map.radius, walled: true, spawns: spawns?.length ? spawns : ringSpawns(course, map) };
 }
 
 /** Standing room: on land above the waterline and not inside a building. */

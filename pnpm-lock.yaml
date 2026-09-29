@@ -41,6 +41,9 @@ importers:
       '@slop/input':
         specifier: workspace:*
         version: link:../packages/input
+      '@slop/level-loader':
+        specifier: workspace:*
+        version: link:../packages/level-loader
       '@slop/physics':
         specifier: workspace:*
         version: link:../packages/physics

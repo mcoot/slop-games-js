@@ -5,7 +5,8 @@ Run headless (tools/export-levels.mjs does this for every level):
 
 Custom properties are exported as glTF extras, which three.js puts in `userData`.
 Hidden objects are exported too: collision (COL_*) and trigger (TRIG_*) meshes are
-often hidden while editing.
+often hidden while editing. Objects named `REF_*` are reference only (e.g. real terrain
+to model against) and are left out.
 """
 import sys
 
@@ -17,6 +18,10 @@ out = sys.argv[sys.argv.index("--") + 1]
 # overwrite a good level with that.
 if not bpy.data.filepath:
     sys.exit("could not open the .blend file")
+
+# Drop reference objects from this session (the .blend isn't saved).
+for obj in [o for o in bpy.data.objects if o.name.startswith("REF_")]:
+    bpy.data.objects.remove(obj)
 
 bpy.ops.export_scene.gltf(
     filepath=out,
