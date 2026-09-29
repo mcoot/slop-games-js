@@ -31,6 +31,7 @@ import { RacerView } from "./view/racer";
 import { CoastAudio } from "./audio";
 import { Multiplayer } from "./net/multiplayer";
 import { Deathmatch } from "./dm/deathmatch";
+import { netSettings } from "./net/combat";
 import { WEAPONS, type WeaponDef } from "./combat/weapons";
 
 /** Deathmatch by default; the time trial and races with `?mode=race`. */
@@ -387,6 +388,7 @@ async function main() {
   tuning.addGroup("Mouse", look.settings, { sensitivity: [0.1, 10, 0.01], mYaw: true, mPitch: true, invertY: true });
   tuning.addGroup("Audio", audio.settings, { master: [0, 1, 0.01], ocean: [0, 1, 0.01], wind: [0, 1, 0.01] });
   tuning.addGroup("Simulation", simulation, { tickRate: [20, 144, 1] });
+  tuning.addGroup("Network", netSettings, { predict: true, maxAhead: [0, 1, 0.01], smoothing: [0, 0.5, 0.01], snapDistance: [1, 20, 0.5], pingInterval: [0.25, 5, 0.25] });
   tuning.addGroup("Display", display, { renderScale: [0.25, 1, 0.05] });
   tuning.addGroup("Debug", debug, { fps: true, perf: true, ghost: true });
   tuning.gui.add({ clear: () => { clearBest(bestKey); best = null; updateBest(); } }, "clear").name("Forget my best time");

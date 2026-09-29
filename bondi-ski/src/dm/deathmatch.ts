@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { MouseLook } from "@slop/input";
 import type { PhysicsWorld } from "@slop/physics";
 import type { MovementSettings, PlayerController } from "@slop/fps-controller";
-import type { CourseData } from "../course/data";
+import { heightAt, type CourseData } from "../course/data";
 import type { Jetpack } from "../jetpack";
 import type { CoastAudio } from "../audio";
 import { Arena, aimOf, type Local } from "../combat/arena";
@@ -10,7 +10,7 @@ import { mapById, type ArenaLayout } from "../maps";
 import type { Target } from "../combat/damage";
 import { Fighter } from "../combat/fighter";
 import { WEAPONS, type ProjectileId, type WeaponDef, type WeaponId } from "../combat/weapons";
-import { CombatSession } from "../net/combat";
+import { CombatSession, netSettings } from "../net/combat";
 import { colourFor } from "../net/session";
 import { randomId, type Transport } from "../net/transport";
 import { Explosions, FighterView, ProjectileViews, Viewmodel } from "../view/combat";
@@ -209,6 +209,7 @@ export class Deathmatch {
     if (out && !this.outWarned && f.alive) this.ctx.toast("Turn back: you're leaving the arena", 2);
     this.outWarned = out;
 
+    netSettings.gravity = this.ctx.movement.gravity;
     this.session?.tick({
       x: p.feet.x,
       y: p.feet.y,
@@ -254,7 +255,7 @@ export class Deathmatch {
     }
     for (const peer of this.session?.peers.values() ?? []) {
       const v = this.viewFor(peer.id, peer.name, this.colourOf(peer.id));
-      const s = this.session!.sample(peer);
+      const s = this.session!.pose(peer);
       if (!s) continue;
       v.update(s, peer.alive);
       if (peer.alive) {
@@ -301,7 +302,7 @@ export class Deathmatch {
         if (m.by !== this.session?.selfId || victim === m.by) return;
         this.hitMarker(m.hp <= 0, m.midair);
         const peer = this.session.peers.get(victim);
-        const at = peer && this.session.sample(peer);
+        const at = peer && this.session.pose(peer);
         if (at) this.damageNumber(at, m.dmg, m.hp <= 0, m.midair);
       },
       died: (victim, by, w) => {
@@ -320,6 +321,8 @@ export class Deathmatch {
       },
     }, undefined, { since: this.lobby.since, map: this.ctx.layout.map.id, game: this.gameType });
     if (this.teams) this.session.setTeam(this.myTeam);
+    const terrain = this.ctx.course.terrain;
+    this.session.ground = (x, z) => heightAt(terrain, x, z);
     // Our own deaths and kills are counted under our id in the room.
     this.me.id = this.session.selfId;
   }
@@ -451,7 +454,7 @@ export class Deathmatch {
   private remoteTargets(): Target[] {
     const out: Target[] = [];
     for (const peer of this.session?.peers.values() ?? []) {
-      const s = this.session!.sample(peer);
+      const s = this.session!.pose(peer);
       if (!s || !peer.alive) continue;
       out.push({ id: peer.id, feet: { x: s.x, y: s.y, z: s.z }, height: this.ctx.movement.standHeight, radius: 0.45, airborne: peer.airborne });
     }
