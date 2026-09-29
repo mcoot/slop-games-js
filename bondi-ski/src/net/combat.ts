@@ -24,6 +24,15 @@ export interface RemoteFighter {
   latency: number;
   /** Their team when playing teams (null until they say). */
   team: TeamId | null;
+  /** What they said in their hello: when they joined, and their map and game (null until then). */
+  room: RoomInfo | null;
+}
+
+/** When you joined the room (ms since the epoch: the earliest is the host), and your map and game. */
+export interface RoomInfo {
+  since: number;
+  map: string;
+  game: string;
 }
 
 export interface CombatEvents {
@@ -49,6 +58,7 @@ export class CombatSession {
     public name: string,
     private readonly events: CombatEvents,
     private readonly now: () => number = () => performance.now(),
+    readonly room: RoomInfo = { since: 0, map: "", game: "" },
   ) {
     transport.onMessage((from, m) => this.receive(from, m));
     const join = (id: string) => {
@@ -64,6 +74,7 @@ export class CombatSession {
         airborne: false,
         latency: 0.05,
         team: null,
+        room: null,
       });
       this.hello(id);
       transport.send({ t: "ping", at: this.now() }, id);
@@ -83,6 +94,23 @@ export class CombatSession {
 
   get colour(): string {
     return colourFor(this.selfId);
+  }
+
+  /**
+   * The room's host: whoever has been in it longest (of those we've heard from). Their
+   * map and game are the room's; if they leave, the next longest takes over.
+   */
+  get hostId(): string {
+    let best = { id: this.selfId, since: this.room.since };
+    for (const p of this.peers.values()) {
+      if (!p.room) continue;
+      if (p.room.since < best.since || (p.room.since === best.since && p.id < best.id)) best = { id: p.id, since: p.room.since };
+    }
+    return best.id;
+  }
+
+  get isHost(): boolean {
+    return this.hostId === this.selfId;
   }
 
   setName(name: string): void {
@@ -142,7 +170,7 @@ export class CombatSession {
   }
 
   private hello(to?: string): void {
-    this.transport.send({ t: "hello", name: this.name, colour: this.colour, ...(this.team !== null ? { team: this.team } : {}) }, to);
+    this.transport.send({ t: "hello", name: this.name, colour: this.colour, ...this.room, ...(this.team !== null ? { team: this.team } : {}) }, to);
   }
 
   private receive(from: string, m: NetMessage): void {
@@ -159,6 +187,7 @@ export class CombatSession {
           const first = peer.name === UNNAMED;
           peer.name = m.name.slice(0, 24) || "Skier";
           peer.team = teamOf(m.team);
+          if (typeof m.since === "number") peer.room = { since: m.since, map: String(m.map ?? ""), game: String(m.game ?? "") };
           if (first) this.hello(from);
           this.events.peersChanged();
         }

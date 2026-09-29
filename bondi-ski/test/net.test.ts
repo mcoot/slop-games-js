@@ -160,4 +160,26 @@ describe("combat session", () => {
     a.leave();
     b.leave();
   });
+
+  it("the player in the room longest is the host, and teams and maps travel in the hello", async () => {
+    const { CombatSession } = await import("../src/net/combat");
+    const hub = memoryHub();
+    const now = () => 0;
+    const events = { peersChanged() {}, fire() {}, hurt() {}, died() {}, match() {} };
+    const mk = (name: string, since: number, map: string) =>
+      new CombatSession(new BusTransport(hub.bus(), now, 100000), name, events, now, { since, map, game: "teams" });
+    const late = mk("late", 2000, "bondi-beach");
+    const early = mk("early", 1000, "marks-park");
+    early.setTeam(1);
+    expect(late.hostId).toBe(early.selfId);
+    expect(early.isHost).toBe(true);
+    expect(late.isHost).toBe(false);
+    const seen = late.peers.get(early.selfId)!;
+    expect(seen.room).toEqual({ since: 1000, map: "marks-park", game: "teams" });
+    expect(seen.team).toBe(1);
+    // The host leaves: the next longest in takes over.
+    early.leave();
+    expect(late.isHost).toBe(true);
+    late.leave();
+  });
 });

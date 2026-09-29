@@ -328,6 +328,7 @@ async function main() {
       team: () => dm.myTeam,
       setTeam: (t) => dm.setTeam(t),
       teamSizes: () => dm.teamSizes(),
+      host: () => dm.host(),
     });
     dm.lobby.onRender = () => prematch?.render();
     document.querySelector(".win-rule")!.textContent = dm.teams ? `Two teams: the first to ${dm.target} kills wins.` : `First to ${dm.target} kills wins.`;

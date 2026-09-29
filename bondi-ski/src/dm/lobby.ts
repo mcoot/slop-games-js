@@ -61,6 +61,25 @@ export class Lobby {
     return url.toString();
   }
 
+  /**
+   * When we joined this room (ms since the epoch), kept for the tab's life so a reload
+   * (changing map) doesn't lose our place as host.
+   */
+  get since(): number {
+    const key = `bondi-ski.since.${this.room}`;
+    try {
+      const kept = Number(sessionStorage.getItem(key));
+      if (kept > 0) return kept;
+      const now = Date.now();
+      sessionStorage.setItem(key, String(now));
+      return now;
+    } catch {
+      return (this.sinceFallback ||= Date.now());
+    }
+  }
+
+  private sinceFallback = 0;
+
   join(room: string): void {
     this.room = room;
     // Deathmatch rooms are separate from race rooms with the same code.
@@ -72,6 +91,12 @@ export class Lobby {
 
   leave(): void {
     this.onLeave();
+    try {
+      sessionStorage.removeItem(`bondi-ski.since.${this.room}`);
+    } catch {
+      // nothing kept
+    }
+    this.sinceFallback = 0;
     this.room = "";
     const url = new URL(location.href);
     url.searchParams.delete("room");
