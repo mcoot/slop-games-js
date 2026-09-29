@@ -1,4 +1,5 @@
 import type { MapDef } from "../maps";
+import { TEAMS, type GameType, type TeamId } from "../combat/teams";
 
 /** Practice bot counts offered on the pre-match screen (0 is off). */
 export const BOT_CHOICES = [0, 1, 2, 3, 4, 6, 8];
@@ -34,20 +35,56 @@ export interface PrematchOptions {
   setBots(n: number): void;
   /** In a room there are no bots: the other players are the opposition. */
   inRoom(): boolean;
+  gameType: GameType;
+  team(): TeamId;
+  setTeam(t: TeamId): void;
+  teamSizes(): [number, number];
 }
 
 /**
- * The deathmatch pre-match screen on the title card: pick a map (the page reloads onto
- * it, keeping any room) and how many practice bots you face on your own.
+ * The deathmatch pre-match screen on the title card: pick a map and free-for-all or teams
+ * (the page reloads onto them, keeping any room), your team, and how many practice bots
+ * you play with on your own.
  */
 export class Prematch {
   private readonly botsEl = document.querySelector<HTMLElement>("#overlay .bots")!;
   private readonly hintEl = document.querySelector<HTMLElement>("#overlay .bots-hint")!;
+  private readonly teamsEl = document.querySelector<HTMLElement>("#overlay .teams")!;
 
   constructor(private readonly o: PrematchOptions) {
     this.buildMaps();
+    this.buildGameType();
     this.buildBots();
     this.render();
+  }
+
+  private buildGameType(): void {
+    const el = document.querySelector<HTMLElement>("#overlay .gametype")!;
+    for (const [type, label] of [["ffa", "Free-for-all"], ["teams", "Teams"]] as const) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      b.setAttribute("aria-pressed", String(type === this.o.gameType));
+      b.addEventListener("click", () => {
+        if (type === this.o.gameType) return;
+        const url = new URL(location.href);
+        if (type === "teams") url.searchParams.set("teams", "1");
+        else url.searchParams.delete("teams");
+        location.href = url.toString();
+      });
+      el.append(b);
+    }
+    document.querySelector<HTMLElement>("#overlay .teampick")!.hidden = this.o.gameType !== "teams";
+    TEAMS.forEach((t, i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.team = String(i);
+      b.addEventListener("click", () => {
+        this.o.setTeam(i as TeamId);
+        this.render();
+      });
+      this.teamsEl.append(b);
+    });
   }
 
   private buildMaps(): void {
@@ -97,6 +134,18 @@ export class Prematch {
   render(): void {
     const room = this.o.inRoom();
     const bots = this.o.bots();
+    if (this.o.gameType === "teams") {
+      const mine = this.o.team();
+      const sizes = this.o.teamSizes();
+      for (const b of this.teamsEl.querySelectorAll<HTMLButtonElement>("button")) {
+        const t = Number(b.dataset.team) as TeamId;
+        const pressed = t === mine;
+        b.setAttribute("aria-pressed", String(pressed));
+        b.textContent = `${TEAMS[t]!.name} · ${sizes[t]}`;
+        b.style.background = pressed ? TEAMS[t]!.colour : "";
+        b.style.color = pressed ? "#0b2233" : TEAMS[t]!.colour;
+      }
+    }
     for (const b of this.botsEl.querySelectorAll<HTMLButtonElement>("button")) {
       b.disabled = room;
       b.setAttribute("aria-pressed", String(!room && Number(b.dataset.n) === bots));
@@ -105,6 +154,8 @@ export class Prematch {
       ? "No bots in a room: you're playing the people in it."
       : bots === 0
         ? "Just you: ski the map, or make a room below to play friends."
-        : `${bots} practice ${bots === 1 ? "bot" : "bots"} while you're on your own.`;
+        : this.o.gameType === "teams"
+          ? `${bots} practice ${bots === 1 ? "bot" : "bots"}: ${Math.floor(bots / 2)} with you, ${Math.ceil(bots / 2)} against.`
+          : `${bots} practice ${bots === 1 ? "bot" : "bots"} while you're on your own.`;
   }
 }

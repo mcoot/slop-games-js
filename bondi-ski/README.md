@@ -65,7 +65,7 @@ Ascend (every number is in the Tuning panel):
 | | Spinfusor (1) | Assault rifle (2) | Impact Nitron (F) |
 | --- | --- | --- | --- |
 | Projectile | Disc, 62 m/s, keeps 50% of your velocity | Round, 230 m/s, keeps 30% | Grenade, 30 m/s thrown in an arc, keeps 50%, bursts on impact |
-| Damage | 700 on a direct hit or within 2 m of the blast, then down to 25% at 7 m | 80 a round, no splash | 450 within 1.5 m, down to 30% at 8 m |
+| Damage | 700 on a direct hit; splash 400 within 0.5 m of the blast, dropping away fast (about 250 at 2 m, 120 at 4 m) to 10% at 7 m | 80 a round, no splash | 450 within 1.5 m, down to 30% at 8 m |
 | Midair | ×1.1 on a direct hit against someone in the air: 770, nearly a kill from full health | none | none |
 | Rate | one disc every 1.1 s | three-round bursts (0.075 s apart), 0.3 s between bursts; 24-round magazine, 1.7 s reload | one every 0.8 s; 3 per life, restocked when you respawn |
 | Self | 35% of the damage, 1.5× knockback: disc jumps build speed | none | 35%, 1.5× knockback |
@@ -76,16 +76,23 @@ reloads itself after 3 s.
 900 health, back 60 hp/s after 8 s without damage; 3 s to respawn, at a spawn point
 along the course away from everyone. First to 15 kills wins; the scores show for 10 s,
 then a new match starts. Getting past an arena's wall (over the top), or 420 m from the
-middle of the coastal walk, hurts; the sea kills.
+middle of the coastal walk, hurts; the sea kills. Splash needs a clear line to you: a
+wall, a crest or a building between you and the blast shields you.
+
+Free-for-all or teams (pick on the pre-match screen, or `?teams=1`): two teams, Bondi
+(blue) and Bronte (orange), first team to 25 kills. Teammates' blasts push you but don't
+hurt. Pick your side on the pre-match screen; in a room you're put on the smaller team
+until you choose. Practice bots split between the sides, one against you first.
 
 Enemies you can see have their name and a health bar over them, and your hits float
 up as damage numbers (yellow for a midair, red for the kill).
 
 On your own you play practice bots: pick Off or 1 to 8 on the pre-match screen (3 by
-default; remembered, or `?bots=` in the link; also Tuning → Match). They're simple:
+default; remembered, or `?bots=` in the link; also Tuning → Match). On your own the
+fight waits while you're on the pre-match screen: bots stand still until you play. They're simple:
 they head for the nearest enemy, ski and jet on the way, strafe and hop up close, and
 fire discs at your feet with a rough lead. In a room (title card → Create a room, then
-share the link) it's players only.
+share the link, which carries the map and game type) it's players only.
 
 | Key | Action |
 | --- | --- |

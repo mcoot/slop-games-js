@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RAPIER, createPhysicsWorld } from "@slop/physics";
 import { blastOn, type Target } from "../src/combat/damage";
+import { Match } from "../src/combat/match";
 import { Fighter } from "../src/combat/fighter";
 import { Projectiles, launchVelocity, type Impact } from "../src/combat/projectiles";
 import { WEAPONS, WeaponState } from "../src/combat/weapons";
@@ -103,7 +104,7 @@ describe("damage", () => {
   });
 
   it("splash does full damage inside the inner radius, then falls off linearly to the edge", () => {
-    const w = { ...disc, damage: 400, splashRadius: 6, splashInner: 2, splashFalloff: 0.25 };
+    const w = { ...disc, splashDamage: 400, splashRadius: 6, splashInner: 2, splashFalloff: 0.25, splashPower: 1 };
     const r = target().radius;
     // `dist` is measured from the blast to the surface of their capsule.
     const at = (dist: number) => blastOn(w, { x: dist + r, y: 1, z: 0 }, target(), false, false)!.damage;
@@ -111,6 +112,16 @@ describe("damage", () => {
     expect(at(1.9)).toBe(400);
     expect(at(4)).toBe(Math.round(400 * (1 - 0.5 * 0.75)));
     expect(at(5)).toBe(175);
+  });
+
+  it("disc splash tops out at 400 and drops away quickly", () => {
+    const r = target().radius;
+    const at = (dist: number) => blastOn(disc, { x: dist + r, y: 1, z: 0 }, target(), false, false)!.damage;
+    expect(at(0.3)).toBe(400);
+    expect(at(2)).toBeLessThan(300);
+    expect(at(4)).toBeLessThan(130);
+    expect(at(6.9)).toBeGreaterThanOrEqual(40);
+    expect(at(6.9)).toBeLessThan(45);
   });
 
   it("your own disc barely hurts but throws you (disc jumping)", () => {
@@ -160,5 +171,21 @@ describe("projectiles", () => {
     expect(impacts[0]!.point.y).toBeCloseTo(0, 1);
     const v = launchVelocity(WEAPONS.disc, { x: 0, y: 0, z: -1 }, { x: 20, y: 0, z: 0 });
     expect(v.x).toBeCloseTo(20 * WEAPONS.disc.inherit);
+  });
+});
+
+describe("teams", () => {
+  it("kills count for the killer's team, the first team to the target wins", () => {
+    const team: Record<string, 0 | 1> = { a: 0, b: 0, c: 1, d: 1 };
+    const m = new Match(3);
+    m.teamOf = (id) => team[id] ?? null;
+    m.reset("m1");
+    expect(m.recordDeath("c", "a", 1)).toBeNull();
+    expect(m.recordDeath("d", "b", 2)).toBeNull();
+    expect(m.recordDeath("a", "a", 3)).toBeNull(); // a suicide scores nothing
+    expect(m.recordDeath("a", "c", 4)).toBeNull();
+    expect(m.teamKills).toEqual([2, 1]);
+    expect(m.recordDeath("c", "b", 5)).toBe("team:0");
+    expect(m.kills.get("b")).toBe(2);
   });
 });

@@ -1,6 +1,9 @@
+import { teamWinner, type TeamId } from "./teams";
+
 /**
  * A deathmatch: kills and deaths per player, first to `target` kills wins. Everyone's
- * copy is fed the same death reports, so the boards agree.
+ * copy is fed the same death reports, so the boards agree. With teams (`teamOf` set),
+ * kills count for the killer's team and the first team to `target` wins.
  */
 export class Match {
   id = "";
@@ -9,6 +12,10 @@ export class Match {
   endedAt = 0;
   readonly kills = new Map<string, number>();
   readonly deaths = new Map<string, number>();
+  /** Kills per team, when playing teams. */
+  readonly teamKills: [number, number] = [0, 0];
+  /** Who's on which team (null: free-for-all). */
+  teamOf: ((id: string) => TeamId | null) | null = null;
 
   constructor(public target = 15) {}
 
@@ -18,6 +25,7 @@ export class Match {
     this.winner = null;
     this.kills.clear();
     this.deaths.clear();
+    this.teamKills[0] = this.teamKills[1] = 0;
   }
 
   get over(): boolean {
@@ -31,6 +39,16 @@ export class Match {
     if (killer === victim) return null;
     const k = (this.kills.get(killer) ?? 0) + 1;
     this.kills.set(killer, k);
+    if (this.teamOf) {
+      const team = this.teamOf(killer);
+      if (team === null || team === this.teamOf(victim)) return null;
+      if (++this.teamKills[team] >= this.target) {
+        this.winner = teamWinner(team);
+        this.endedAt = now;
+        return this.winner;
+      }
+      return null;
+    }
     if (k >= this.target) {
       this.winner = killer;
       this.endedAt = now;

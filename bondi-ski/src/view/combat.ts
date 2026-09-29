@@ -109,7 +109,7 @@ export class FighterView {
 
   constructor(
     readonly name: string,
-    colour: string,
+    readonly colour: string,
     height: number,
   ) {
     const mat = new THREE.MeshLambertMaterial({ color: colour });

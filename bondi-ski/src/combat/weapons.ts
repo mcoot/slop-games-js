@@ -21,14 +21,18 @@ export interface WeaponDef {
   lifetime: number;
   /** Collision radius of the projectile (m). */
   radius: number;
-  /** Damage on a direct hit, and at the centre of the blast. */
+  /** Damage on a direct hit. */
   damage: number;
+  /** Most splash damage, at the centre of the blast (less than a direct hit, so aim matters). */
+  splashDamage: number;
   /** Blast radius (m); 0 for no splash. */
   splashRadius: number;
-  /** Full damage within this distance of the blast (m), then a linear falloff to the edge. */
+  /** Full splash damage within this distance of the blast (m), then it falls off to the edge. */
   splashInner: number;
-  /** Fraction of `damage` at the edge of the blast. */
+  /** Fraction of `splashDamage` left at the edge of the blast. */
   splashFalloff: number;
+  /** Shape of the falloff: 1 is linear, 2 drops away quickly just outside the core. */
+  splashPower: number;
   /** Multiplier on a direct hit against someone in the air (a "midair"). */
   midairBonus: number;
   /** Fraction of damage you take from your own blast. */
@@ -51,7 +55,8 @@ export interface WeaponDef {
 
 export const WEAPONS: Record<ProjectileId, WeaponDef> = {
   // Spinfusor: the Tribes disc. Slow, splashy, one per second; a midair direct hit does
-  // 770, close to a kill from full health but not quite.
+  // 770, close to a kill from full health but not quite. Splash tops out at 400 and
+  // drops away fast, so near misses sting but don't kill.
   disc: {
     id: "disc",
     name: "Spinfusor",
@@ -61,9 +66,11 @@ export const WEAPONS: Record<ProjectileId, WeaponDef> = {
     lifetime: 4,
     radius: 0.3,
     damage: 700,
+    splashDamage: 400,
     splashRadius: 7,
-    splashInner: 2,
-    splashFalloff: 0.25,
+    splashInner: 0.5,
+    splashFalloff: 0.1,
+    splashPower: 2,
     midairBonus: 1.1,
     selfDamage: 0.35,
     impulse: 14,
@@ -86,9 +93,11 @@ export const WEAPONS: Record<ProjectileId, WeaponDef> = {
     lifetime: 1.4,
     radius: 0.1,
     damage: 80,
+    splashDamage: 0,
     splashRadius: 0,
     splashInner: 0,
     splashFalloff: 1,
+    splashPower: 1,
     midairBonus: 1,
     selfDamage: 0,
     impulse: 0.4,
@@ -112,9 +121,11 @@ export const WEAPONS: Record<ProjectileId, WeaponDef> = {
     lifetime: 5,
     radius: 0.2,
     damage: 450,
+    splashDamage: 450,
     splashRadius: 8,
     splashInner: 1.5,
     splashFalloff: 0.3,
+    splashPower: 1,
     midairBonus: 1,
     selfDamage: 0.35,
     impulse: 18,
