@@ -15,9 +15,9 @@ function seeded(seed: number) {
 }
 
 async function arena(mapId = "coastal-walk") {
-  const { course, route, world, player } = await makeCourse();
   const map = mapById(mapId);
-  const layout = layoutFor(map, course, route);
+  const { course, route, world, player, arenaSpawns } = await makeCourse(map);
+  const layout = layoutFor(map, course, route, arenaSpawns);
   if (layout.walled) buildArenaWall(world, course, map.centre, map.radius);
   const log: string[] = [];
   const impacts: { x: number; z: number }[] = [];
@@ -60,7 +60,7 @@ describe("arena", () => {
     expect(me.fighter.health).toBeGreaterThan(600);
   });
 
-  it.each(["coastal-walk", "marks-park"])("a bot finds you and kills you, you respawn, and it scores (%s)", async (id) => {
+  it.each(["coastal-walk", "marks-park", "sculpture-park"])("a bot finds you and kills you, you respawn, and it scores (%s)", async (id) => {
     const { a, log, step } = await arena(id);
     a.addBot("Bot", "#ff0000");
     step(90);

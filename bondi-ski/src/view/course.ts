@@ -256,7 +256,7 @@ function walkMesh(course: CourseData): THREE.Mesh {
       const sz = z + rz * side;
       pos.push(sx, Math.max(heightAt(course.terrain, sx, sz), y) + 0.12, sz);
     }
-    if (i > 0) {
+    if (i > 0 && !course.pathHidden?.[i - 1] && !course.pathHidden?.[i]) {
       const a = (i - 1) * 2;
       idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
     }

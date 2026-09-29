@@ -15,6 +15,7 @@ import { TuningPanel, type FieldSpec } from "@slop/tuning";
 import { inSea, loadCourse, terrainNormal } from "./course/data";
 import { buildRoute, defaultRoute } from "./course/route";
 import { buildArenaWall, buildCoursePhysics, wallSpan } from "./course/physics";
+import { buildArenaStructures, clearRoute, loadArenaFile, stampArena } from "./course/arenaLevel";
 import { layoutFor, mapById, MAPS } from "./maps";
 import { ForceField } from "./view/forceField";
 import { bondiMovementPresets, bondiSkiMovement } from "./movement";
@@ -97,6 +98,9 @@ async function main() {
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const course = await loadCourse("course/", COURSE);
+  // A map built in Blender replaces the ground inside its wall (deathmatch only).
+  const arenaFile = MODE === "dm" && MAP.level ? await loadArenaFile(`maps/${MAP.level}.glb`, course) : null;
+  if (arenaFile) stampArena(course, MAP.centre, MAP.radius, arenaFile);
   document.querySelector(".map-title")!.textContent = MAP.title;
   // Other maps reload the page onto them (a room link carries its map along).
   const mapsEl = document.querySelector<HTMLElement>(".maps")!;
@@ -140,10 +144,22 @@ async function main() {
 
   const world = await createPhysicsWorld();
   const route = buildRoute(course, { ...defaultRoute });
+  if (arenaFile) clearRoute(route, MAP.centre, MAP.radius);
   const physics = buildCoursePhysics(world, course, route);
   const view = buildCourseView(course, route);
   scene.add(view.root);
-  const layout = layoutFor(MAP, course, route);
+  let arenaSpawns;
+  if (arenaFile) {
+    // The sky, blurred, for the polished steel to reflect.
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const skyScene = new THREE.Scene().add(createSky(sunDir));
+    const environment = pmrem.fromScene(skyScene, 0.02, 0.1, 5000).texture;
+    pmrem.dispose();
+    const structures = buildArenaStructures(world, arenaFile, environment);
+    scene.add(structures.root);
+    arenaSpawns = structures.spawns;
+  }
+  const layout = layoutFor(MAP, course, route, arenaSpawns);
   let forceField: ForceField | null = null;
   if (MODE === "dm" && layout.walled) {
     buildArenaWall(world, course, MAP.centre, MAP.radius);
