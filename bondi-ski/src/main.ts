@@ -324,9 +324,14 @@ async function main() {
       bots: () => dm.settings.bots,
       setBots: (n) => dm.setBots(n),
       inRoom: () => dm.lobby.inRoom,
+      gameType: dm.gameType,
+      team: () => dm.myTeam,
+      setTeam: (t) => dm.setTeam(t),
+      teamSizes: () => dm.teamSizes(),
     });
     dm.lobby.onRender = () => prematch?.render();
-    document.querySelector(".kill-target")!.textContent = String(dm.settings.killTarget);
+    document.querySelector(".win-rule")!.textContent = dm.teams ? `Two teams: the first to ${dm.target} kills wins.` : `First to ${dm.target} kills wins.`;
+    document.querySelector(".game-title")!.textContent = dm.teams ? "Team deathmatch" : "Deathmatch";
   }
   if (dm) for (const g of view.gates) g.root.visible = false;
 
@@ -358,9 +363,11 @@ async function main() {
       inherit: [0, 1, 0.05],
       gravity: [0, 30, 0.5],
       damage: [0, 2000, 5],
+      splashDamage: [0, 2000, 10],
       splashRadius: [0, 20, 0.25],
       splashInner: [0, 20, 0.25],
       splashFalloff: [0, 1, 0.05],
+      splashPower: [0.5, 4, 0.1],
       midairBonus: [1, 3, 0.05],
       selfDamage: [0, 1, 0.05],
       impulse: [0, 40, 0.5],
@@ -372,7 +379,7 @@ async function main() {
     tuning.addGroup("Impact Nitron", WEAPONS.grenade, { ...weapon, splashInner: [0, 20, 0.25], magazine: [0, 10, 1] });
     tuning.addGroup("Assault rifle", WEAPONS.rifle, { ...weapon, burst: [1, 6, 1], burstInterval: [0.02, 0.3, 0.005], magazine: [0, 120, 1], reload: [0, 5, 0.1] });
     tuning.addGroup("Health & weapons", dm.fighter.settings, { maxHealth: [100, 3000, 10], regenDelay: [0, 30, 0.5], regenRate: [0, 500, 5], respawnTime: [0, 10, 0.5], switchTime: [0, 2, 0.05], stowedReload: [0, 15, 0.5] });
-    const match = tuning.addGroup("Match", dm.settings, { killTarget: [1, 100, 1], resultsTime: [2, 30, 1] });
+    const match = tuning.addGroup("Match", dm.settings, { killTarget: [1, 100, 1], teamKillTarget: [1, 200, 1], resultsTime: [2, 30, 1] });
     match.add(dm.settings, "bots", 0, 8, 1).name("practice bots").listen().onChange((n: number) => dm.setBots(n));
   }
   tuning.addGroup("Camera", cameraFeel, { sourceFov: [60, 130, 1], landingDip: true, headBob: [0, 0.08, 0.005] });
@@ -466,7 +473,7 @@ async function main() {
 
       if (dm) {
         const pick = input.consumePresses("weapon1") > 0 ? "disc" : input.consumePresses("weapon2") > 0 ? "rifle" : input.consumePresses("swap") > 0 ? "swap" : null;
-        dm.tick(dt, { fire: input.isDown("fire"), grenade: input.consumePresses("grenade") > 0, weapon: pick, reload: restartPressed, scores: input.isDown("scores") });
+        dm.tick(dt, { fire: input.isDown("fire"), grenade: input.consumePresses("grenade") > 0, weapon: pick, reload: restartPressed, scores: input.isDown("scores"), paused: !look.isLocked });
         world.step();
         rig.afterTick(player);
         topSpeed = Math.max(topSpeed, player.horizontalSpeed);

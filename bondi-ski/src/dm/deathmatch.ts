@@ -17,6 +17,7 @@ import { Explosions, FighterView, ProjectileViews, Viewmodel } from "../view/com
 import { defaultBotSettings } from "../combat/bot";
 import { Lobby } from "./lobby";
 import { savedBots } from "./prematch";
+import { gameTypeFromUrl, TEAMS, teamWinner, type GameType, type TeamId } from "../combat/teams";
 import { WorldOverlay, type LabelItem } from "./overlay";
 import { RAPIER } from "@slop/physics";
 
@@ -37,6 +38,8 @@ export interface DeathmatchContext {
 export interface DeathmatchSettings {
   /** Kills to win. */
   killTarget: number;
+  /** Team kills to win, playing teams. */
+  teamKillTarget: number;
   /** Practice bots when you're not in a room. */
   bots: number;
   /** Seconds of results before the next match. */
@@ -52,7 +55,14 @@ const BOT_COLOURS = ["#ff6b5e", "#ffa94d", "#b18cff", "#ff8fd8", "#e6f36b", "#3d
  * skiing and jetting; first to the kill target wins, then a new match starts.
  */
 export class Deathmatch {
-  readonly settings: DeathmatchSettings = { killTarget: 15, bots: savedBots(), resultsTime: 10 };
+  readonly settings: DeathmatchSettings = { killTarget: 15, teamKillTarget: 25, bots: savedBots(), resultsTime: 10 };
+  /** Free-for-all or teams: from the link, so a room's invite puts everyone in the same game. */
+  readonly gameType: GameType = gameTypeFromUrl();
+  /** Our team, playing teams. */
+  myTeam: TeamId = 0;
+  /** Still picking our team for balance (until we choose one ourselves). */
+  private autoTeam = true;
+  private readonly botTeams = new Map<string, TeamId>();
   readonly weaponSettings: Record<ProjectileId, WeaponDef> = WEAPONS;
   readonly fighter = new Fighter();
   readonly arena: Arena;
@@ -134,6 +144,10 @@ export class Deathmatch {
         }
       },
     });
+    if (this.teams) {
+      this.arena.sameTeam = (a, b) => a !== b && this.teamOf(a) !== null && this.teamOf(a) === this.teamOf(b);
+      this.arena.match.teamOf = (id) => this.teamOf(id);
+    }
     this.viewmodel = new Viewmodel();
     ctx.scene.add(this.projectileViews.root, this.explosions.root);
     this.lobby = new Lobby(
@@ -157,7 +171,10 @@ export class Deathmatch {
   }
 
   /** Called every tick after the player has moved, before the physics step. */
-  tick(dt: number, input: { fire: boolean; grenade: boolean; weapon: WeaponId | "swap" | null; reload: boolean; scores: boolean }): void {
+  tick(dt: number, input: { fire: boolean; grenade: boolean; weapon: WeaponId | "swap" | null; reload: boolean; scores: boolean; paused?: boolean }): void {
+    // On the pre-match screen (or paused) on your own, the fight waits for you: bots stand
+    // still and nothing flies. A room carries on, since the others are still playing.
+    if (input.paused && !this.session) return;
     const f = this.fighter;
     this.showScores = input.scores;
     if (input.weapon && f.alive) {
@@ -175,12 +192,14 @@ export class Deathmatch {
 
     this.arena.remoteTargets = this.remoteTargets();
     this.arena.stepBots(dt, (bot) =>
-      [this.me, ...this.arena.bots.filter((b) => b !== bot).map((b) => ({ id: b.id, body: b.body, fighter: b.fighter }))].map((l) => ({
-        id: l.id,
-        feet: { ...l.body.feet },
-        velocity: { ...l.body.velocity },
-        alive: l.fighter.alive,
-      })),
+      [this.me, ...this.arena.bots.filter((b) => b !== bot).map((b) => ({ id: b.id, body: b.body, fighter: b.fighter }))]
+        .filter((l) => !this.arena.sameTeam(bot.id, l.id))
+        .map((l) => ({
+          id: l.id,
+          feet: { ...l.body.feet },
+          velocity: { ...l.body.velocity },
+          alive: l.fighter.alive,
+        })),
     );
     this.arena.step(dt);
 
@@ -211,7 +230,7 @@ export class Deathmatch {
       // One player (the first by id) starts the next match for the room.
       const ids = [this.session?.selfId ?? "", ...(this.session?.peers.keys() ?? [])].sort();
       const id = randomId(6);
-      if (!this.session || ids[0] === this.session.selfId) this.session?.startMatch(id, this.settings.killTarget);
+      if (!this.session || ids[0] === this.session.selfId) this.session?.startMatch(id, this.target);
       this.newMatch(id);
     }
   }
@@ -226,22 +245,22 @@ export class Deathmatch {
     const labels: LabelItem[] = [];
     const head = this.ctx.movement.standHeight + 0.35;
     for (const bot of this.arena.bots) {
-      const v = this.viewFor(bot.id, bot.name, bot.colour);
+      const v = this.viewFor(bot.id, bot.name, this.colourOf(bot.id));
       const f = bot.body.feet;
       v.update({ x: f.x, y: f.y, z: f.z, yaw: bot.yaw, pitch: bot.pitch }, bot.fighter.alive);
       if (bot.fighter.alive) {
         const pos = new THREE.Vector3(f.x, f.y + head, f.z);
-        labels.push({ id: bot.id, name: bot.name, colour: bot.colour, pos, health: bot.fighter.health, maxHealth: bot.fighter.settings.maxHealth, visible: this.canSee(bot.id, pos) });
+        labels.push({ id: bot.id, name: bot.name, colour: this.colourOf(bot.id), pos, health: bot.fighter.health, maxHealth: bot.fighter.settings.maxHealth, visible: this.canSee(bot.id, pos) });
       }
     }
     for (const peer of this.session?.peers.values() ?? []) {
-      const v = this.viewFor(peer.id, peer.name, peer.colour);
+      const v = this.viewFor(peer.id, peer.name, this.colourOf(peer.id));
       const s = this.session!.sample(peer);
       if (!s) continue;
       v.update(s, peer.alive);
       if (peer.alive) {
         const pos = new THREE.Vector3(s.x, s.y + head, s.z);
-        labels.push({ id: peer.id, name: peer.name, colour: peer.colour, pos, health: peer.hp, maxHealth: this.fighter.settings.maxHealth, visible: this.canSee(peer.id, pos) });
+        labels.push({ id: peer.id, name: peer.name, colour: this.colourOf(peer.id), pos, health: peer.hp, maxHealth: this.fighter.settings.maxHealth, visible: this.canSee(peer.id, pos) });
       }
     }
     this.overlay.update(cam, window.innerWidth, window.innerHeight, labels, dt);
@@ -268,6 +287,7 @@ export class Deathmatch {
     this.dropViews();
     this.session = new CombatSession(transport, this.lobby.name, {
       peersChanged: () => {
+        this.balanceTeams();
         this.lobby.render();
         this.syncViews();
       },
@@ -293,11 +313,13 @@ export class Deathmatch {
       },
       match: (id, target) => {
         if (id !== this.arena.match.id) {
-          this.settings.killTarget = target;
+          if (this.teams) this.settings.teamKillTarget = target;
+          else this.settings.killTarget = target;
           this.newMatch(id);
         }
       },
     });
+    if (this.teams) this.session.setTeam(this.myTeam);
     // Our own deaths and kills are counted under our id in the room.
     this.me.id = this.session.selfId;
   }
@@ -312,10 +334,67 @@ export class Deathmatch {
 
   private startSolo(): void {
     this.arena.removeBots();
+    this.botTeams.clear();
     for (let i = 0; i < this.settings.bots; i++) {
       const bot = this.arena.addBot(BOT_NAMES[i % BOT_NAMES.length]!, BOT_COLOURS[i % BOT_COLOURS.length]!);
       bot.settings = { ...defaultBotSettings };
+      // Playing teams: the first bot against you, the next with you, and so on.
+      this.botTeams.set(bot.id, (i % 2 === 0 ? 1 - this.myTeam : this.myTeam) as TeamId);
     }
+  }
+
+  get teams(): boolean {
+    return this.gameType === "teams";
+  }
+
+  /** Kills to win this kind of game. */
+  get target(): number {
+    return this.teams ? this.settings.teamKillTarget : this.settings.killTarget;
+  }
+
+  /** Someone's team (null in a free-for-all, or a player who hasn't said yet). */
+  teamOf(id: string): TeamId | null {
+    if (!this.teams) return null;
+    if (id === this.me.id) return this.myTeam;
+    return this.botTeams.get(id) ?? this.session?.peers.get(id)?.team ?? null;
+  }
+
+  /** Players (and bots) on each team, us included. */
+  teamSizes(): [number, number] {
+    const sizes: [number, number] = [0, 0];
+    const ids = [this.me.id, ...this.arena.bots.map((b) => b.id), ...(this.session?.peers.keys() ?? [])];
+    for (const id of ids) {
+      const t = this.teamOf(id);
+      if (t !== null) sizes[t]++;
+    }
+    return sizes;
+  }
+
+  /** Change sides (from the pre-match screen): you respawn on the new team. */
+  setTeam(team: TeamId): void {
+    this.autoTeam = false;
+    if (team === this.myTeam) return;
+    this.joinTeam(team);
+  }
+
+  private joinTeam(team: TeamId): void {
+    this.myTeam = team;
+    this.session?.setTeam(team);
+    if (!this.session) {
+      // Bots take sides around you.
+      this.dropViews();
+      this.startSolo();
+    }
+    this.syncViews();
+    this.arena.respawn(this.me);
+  }
+
+  /** In a room, until you pick a side: move over if your team is two or more bigger. */
+  private balanceTeams(): void {
+    if (!this.teams || !this.autoTeam || !this.session) return;
+    const sizes = this.teamSizes();
+    const other = (1 - this.myTeam) as TeamId;
+    if (sizes[this.myTeam] - sizes[other] >= 2) this.joinTeam(other);
   }
 
   /** Change the number of practice bots (solo only). */
@@ -328,17 +407,17 @@ export class Deathmatch {
   }
 
   private newMatch(id: string): void {
-    this.arena.match.reset(id, this.settings.killTarget);
+    this.arena.match.reset(id, this.target);
     this.arena.projectiles.clear();
     for (const l of this.arena.locals()) this.arena.respawn(l);
-    this.ctx.toast(`First to ${this.settings.killTarget} kills`, 2.5);
+    this.ctx.toast(this.teams ? `Team deathmatch: first team to ${this.target} kills` : `First to ${this.target} kills`, 2.5);
   }
 
   private checkWinner(): void {
     const m = this.arena.match;
     if (m.over && m.winner) {
-      const you = m.winner === this.me.id;
-      this.ctx.toast(you ? "You win!" : `${this.nameOf(m.winner)} wins`, 4);
+      const you = this.teams ? m.winner === teamWinner(this.myTeam) : m.winner === this.me.id;
+      this.ctx.toast(this.teams ? `${this.nameOf(m.winner)} win!` : you ? "You win!" : `${this.nameOf(m.winner)} wins`, 4);
       this.ctx.audio.finish(you);
     }
   }
@@ -356,6 +435,8 @@ export class Deathmatch {
   }
 
   private nameOf(id: string): string {
+    if (id === teamWinner(0)) return TEAMS[0]!.name;
+    if (id === teamWinner(1)) return TEAMS[1]!.name;
     if (id === this.me.id) return this.lobby.name;
     const bot = this.arena.bots.find((b) => b.id === id);
     if (bot) return bot.name;
@@ -363,6 +444,8 @@ export class Deathmatch {
   }
 
   private colourOf(id: string): string {
+    const team = this.teamOf(id);
+    if (team !== null) return TEAMS[team]!.colour;
     if (id === this.me.id) return this.session?.colour ?? "#6fd3ff";
     const bot = this.arena.bots.find((b) => b.id === id);
     if (bot) return bot.colour;
@@ -385,12 +468,12 @@ export class Deathmatch {
       v.dispose();
       this.views.delete(id);
     }
-    // Names can arrive after the view was made: rebuild those.
-    for (const peer of this.session?.peers.values() ?? []) {
-      const v = this.views.get(peer.id);
-      if (v && v.name !== peer.name) {
+    // Names and teams can arrive after the view was made: rebuild those.
+    for (const [id, v] of this.views) {
+      const name = this.session?.peers.get(id)?.name ?? v.name;
+      if (v.name !== name || v.colour !== this.colourOf(id)) {
         v.dispose();
-        this.views.delete(peer.id);
+        this.views.delete(id);
       }
     }
   }
@@ -462,19 +545,37 @@ export class Deathmatch {
     const m = this.arena.match;
     const ids = [this.me.id, ...this.arena.bots.map((b) => b.id), ...(this.session?.peers.keys() ?? [])];
     const board = m.board(ids);
-    const mine = m.kills.get(this.me.id) ?? 0;
-    const leader = board[0]!;
-    setHtml(el.matchbar, m.over
-      ? `<b>${escape(this.nameOf(m.winner!))}</b> wins · next match in ${Math.max(Math.ceil(this.settings.resultsTime - (this.arena.now() - m.endedAt)), 0)}`
-      : `First to ${m.target} · you ${mine}${leader.id !== this.me.id && leader.kills > 0 ? ` · ${escape(this.nameOf(leader.id))} ${leader.kills}` : ""}`);
+    const next = `next match in ${Math.max(Math.ceil(this.settings.resultsTime - (this.arena.now() - m.endedAt)), 0)}`;
+    const team = (t: TeamId, text: string) => `<span style="color:${TEAMS[t]!.colour}">${text}</span>`;
+    if (this.teams) {
+      setHtml(el.matchbar, m.over
+        ? `${team(m.winner === teamWinner(0) ? 0 : 1, `<b>${escape(this.nameOf(m.winner!))}</b> win`)} · ${next}`
+        : `${team(0, `${TEAMS[0]!.name} ${m.teamKills[0]}`)} · ${team(1, `${TEAMS[1]!.name} ${m.teamKills[1]}`)} · first to ${m.target}`);
+    } else {
+      const mine = m.kills.get(this.me.id) ?? 0;
+      const leader = board[0]!;
+      setHtml(el.matchbar, m.over
+        ? `<b>${escape(this.nameOf(m.winner!))}</b> wins · ${next}`
+        : `First to ${m.target} · you ${mine}${leader.id !== this.me.id && leader.kills > 0 ? ` · ${escape(this.nameOf(leader.id))} ${leader.kills}` : ""}`);
+    }
 
     el.scores.hidden = !(this.showScores || m.over);
     if (!el.scores.hidden) {
-      setHtml(el.scores, `<table><tr><th></th><th>Player</th><th>Kills</th><th>Deaths</th></tr>` +
-        board
-          .map((r, i) => `<tr${r.id === this.me.id ? ' class="self"' : ""}><td>${i + 1}</td><td style="color:${this.colourOf(r.id)}">${escape(this.nameOf(r.id))}</td><td>${r.kills}</td><td>${r.deaths}</td></tr>`)
-          .join("") +
-        `</table>`);
+      const row = (r: { id: string; kills: number; deaths: number }, i: number) =>
+        `<tr${r.id === this.me.id ? ' class="self"' : ""}><td>${i + 1}</td><td style="color:${this.colourOf(r.id)}">${escape(this.nameOf(r.id))}</td><td>${r.kills}</td><td>${r.deaths}</td></tr>`;
+      const head = `<tr><th></th><th>Player</th><th>Kills</th><th>Deaths</th></tr>`;
+      if (this.teams) {
+        // Each team with its score, the winning side first.
+        const order: TeamId[] = m.teamKills[1] > m.teamKills[0] ? [1, 0] : [0, 1];
+        setHtml(el.scores, order
+          .map((t) => {
+            const rows = board.filter((r) => this.teamOf(r.id) === t);
+            return `<h3>${team(t, `${TEAMS[t]!.name} · ${m.teamKills[t]}`)}</h3><table>${head}${rows.map(row).join("")}</table>`;
+          })
+          .join(""));
+      } else {
+        setHtml(el.scores, `<table>${head}${board.map(row).join("")}</table>`);
+      }
     }
   }
 }

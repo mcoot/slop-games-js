@@ -4,7 +4,7 @@
  */
 export type NetMessage =
   /** Who I am. Sent on joining and whenever someone new appears. */
-  | { t: "hello"; name: string; colour: string }
+  | { t: "hello"; name: string; colour: string; team?: number }
   /** Where I am. `race` is the race I'm in (or ""), `time` my race clock. */
   | { t: "pos"; seq: number; race: string; time: number; x: number; y: number; z: number; yaw: number; next: number }
   /** Start a race: everyone in the room counts down from `seconds` and goes together. */
@@ -18,7 +18,7 @@ export type NetMessage =
   | { t: "pong"; at: number }
   // ---- Deathmatch
   /** My fighter, ~20 times a second. `w` is the weapon in hand, `air` whether I'm off the ground. */
-  | { t: "state"; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; vx: number; vy: number; vz: number; alive: boolean; hp: number; w: string; air: boolean }
+  | { t: "state"; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; vx: number; vy: number; vz: number; alive: boolean; hp: number; w: string; air: boolean; team?: number }
   /** I fired: where from and how fast (spread and inherited velocity already applied). */
   | { t: "fire"; w: string; x: number; y: number; z: number; vx: number; vy: number; vz: number }
   /** I was hurt (each player decides their own damage from the projectiles they see). */

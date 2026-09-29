@@ -1,4 +1,4 @@
-import type { RAPIER, PhysicsWorld } from "@slop/physics";
+import { RAPIER, type PhysicsWorld } from "@slop/physics";
 import { yawBasis, type MovementSettings, type PlayerController } from "@slop/fps-controller";
 import { inSea, type CourseData } from "../course/data";
 import type { ArenaLayout } from "../maps";
@@ -43,6 +43,8 @@ export class Arena {
   readonly radius: number;
   /** Remote fighters as targets (drawn positions), set by the network layer each tick. */
   remoteTargets: Target[] = [];
+  /** Teammates' blasts push you but don't hurt (always false in a free-for-all). */
+  sameTeam: (a: string, b: string) => boolean = () => false;
   private seq = 0;
   private time = 0;
 
@@ -127,12 +129,17 @@ export class Arena {
       for (const l of locals) {
         if (!l.fighter.alive) continue;
         const own = impact.projectile.owner === l.id;
-        const hit = blastOn(w, impact.point, targetOf(l), impact.target?.id === l.id, own);
+        const direct = impact.target?.id === l.id;
+        const t = targetOf(l);
+        // Splash doesn't go through walls, hills or buildings.
+        if (!direct && !this.exposed(impact.point, t, w.splashRadius)) continue;
+        const hit = blastOn(w, impact.point, t, direct, own);
         if (!hit) continue;
         l.body.velocity.x += hit.impulse.x;
         l.body.velocity.y += hit.impulse.y;
         l.body.velocity.z += hit.impulse.z;
         if (hit.impulse.y > 2) l.body.grounded = false;
+        if (!own && this.sameTeam(impact.projectile.owner, l.id)) continue;
         this.damage(l, impact.projectile.owner, w, hit);
       }
     }
@@ -148,6 +155,29 @@ export class Arena {
       }
       if (l.fighter.tick(dt)) this.respawn(l);
     }
+  }
+
+  /**
+   * Is the target out in the open from a blast at `point`: a clear line to their feet,
+   * middle or head? Anything solid in between (a wall, a crest, a building) shields them.
+   */
+  private exposed(point: V3, t: Target, radius: number): boolean {
+    const hulls = this.hulls();
+    for (const up of [0.15, 0.5, 0.9]) {
+      const dx = t.feet.x - point.x;
+      const dy = t.feet.y + t.height * up - point.y;
+      const dz = t.feet.z - point.z;
+      const len = Math.hypot(dx, dy, dz);
+      if (len > radius + t.height) continue;
+      // Start a little off the surface the blast is on, so it doesn't block itself.
+      const skip = Math.min(0.15, len / 2);
+      const dir = { x: dx / len, y: dy / len, z: dz / len };
+      const from = { x: point.x + dir.x * skip, y: point.y + dir.y * skip, z: point.z + dir.z * skip };
+      const ray = new RAPIER.Ray(from, dir);
+      const hit = this.world.castRay(ray, len - skip, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, undefined, (c) => !hulls.has(c.handle));
+      if (!hit) return true;
+    }
+    return false;
   }
 
   /** Seconds of simulation so far. */
@@ -200,9 +230,11 @@ export const OUT_OF_BOUNDS: WeaponDef = {
   lifetime: 0,
   radius: 0,
   damage: 0,
+  splashDamage: 0,
   splashRadius: 0,
   splashInner: 0,
   splashFalloff: 1,
+  splashPower: 1,
   midairBonus: 1,
   selfDamage: 1,
   impulse: 0,

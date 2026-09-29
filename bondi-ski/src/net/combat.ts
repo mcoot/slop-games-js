@@ -1,6 +1,7 @@
 import type { NetMessage } from "./protocol";
 import { colourFor, INTERPOLATION_DELAY_MS, SEND_INTERVAL_MS, type Snapshot } from "./session";
 import type { Transport } from "./transport";
+import type { TeamId } from "../combat/teams";
 
 /**
  * A room of fighters. Carries positions (for drawing and for projectiles to hit), shots,
@@ -21,6 +22,8 @@ export interface RemoteFighter {
   airborne: boolean;
   /** Estimated one-way latency (s), to fast-forward their shots. */
   latency: number;
+  /** Their team when playing teams (null until they say). */
+  team: TeamId | null;
 }
 
 export interface CombatEvents {
@@ -37,6 +40,9 @@ export class CombatSession {
   readonly peers = new Map<string, RemoteFighter>();
   private seq = 0;
   private lastSent = -Infinity;
+
+  /** Our team when playing teams. */
+  team: TeamId | null = null;
 
   constructor(
     readonly transport: Transport,
@@ -57,6 +63,7 @@ export class CombatSession {
         weapon: "disc",
         airborne: false,
         latency: 0.05,
+        team: null,
       });
       this.hello(id);
       transport.send({ t: "ping", at: this.now() }, id);
@@ -83,11 +90,16 @@ export class CombatSession {
     this.hello();
   }
 
+  setTeam(team: TeamId | null): void {
+    this.team = team;
+    this.hello();
+  }
+
   tick(me: Omit<Extract<NetMessage, { t: "state" }>, "t" | "seq">): void {
     const now = this.now();
     if (now - this.lastSent < SEND_INTERVAL_MS) return;
     this.lastSent = now;
-    this.transport.send({ t: "state", seq: this.seq++, ...me, x: r2(me.x), y: r2(me.y), z: r2(me.z), yaw: r2(me.yaw), pitch: r2(me.pitch), vx: r2(me.vx), vy: r2(me.vy), vz: r2(me.vz) });
+    this.transport.send({ t: "state", seq: this.seq++, ...me, ...(this.team !== null ? { team: this.team } : {}), x: r2(me.x), y: r2(me.y), z: r2(me.z), yaw: r2(me.yaw), pitch: r2(me.pitch), vx: r2(me.vx), vy: r2(me.vy), vz: r2(me.vz) });
   }
 
   fire(m: Omit<Extract<NetMessage, { t: "fire" }>, "t">): void {
@@ -130,7 +142,7 @@ export class CombatSession {
   }
 
   private hello(to?: string): void {
-    this.transport.send({ t: "hello", name: this.name, colour: this.colour }, to);
+    this.transport.send({ t: "hello", name: this.name, colour: this.colour, ...(this.team !== null ? { team: this.team } : {}) }, to);
   }
 
   private receive(from: string, m: NetMessage): void {
@@ -146,6 +158,7 @@ export class CombatSession {
         if (peer) {
           const first = peer.name === UNNAMED;
           peer.name = m.name.slice(0, 24) || "Skier";
+          peer.team = teamOf(m.team);
           if (first) this.hello(from);
           this.events.peersChanged();
         }
@@ -159,6 +172,10 @@ export class CombatSession {
         peer.hp = m.hp;
         peer.weapon = m.w;
         peer.airborne = m.air;
+        if (m.team !== undefined && teamOf(m.team) !== peer.team) {
+          peer.team = teamOf(m.team);
+          this.events.peersChanged();
+        }
         return;
       case "fire":
         if (peer) this.events.fire(from, m, peer.latency);
@@ -178,6 +195,10 @@ export class CombatSession {
         return;
     }
   }
+}
+
+function teamOf(t: unknown): TeamId | null {
+  return t === 0 || t === 1 ? t : null;
 }
 
 function r2(v: number): number {

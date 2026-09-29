@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { RAPIER } from "@slop/physics";
 import { Arena, aimOf, targetOf } from "../src/combat/arena";
 import { Fighter } from "../src/combat/fighter";
 import { WEAPONS } from "../src/combat/weapons";
@@ -63,12 +64,13 @@ describe("arena", () => {
   it.each(["coastal-walk", "marks-park", "sculpture-park"])("a bot finds you and kills you, you respawn, and it scores (%s)", async (id) => {
     const { a, log, step } = await arena(id);
     a.addBot("Bot", "#ff0000");
-    step(90);
+    step(150);
     expect(log.some((l) => l.startsWith("died me by bot-1"))).toBe(true);
     expect(log.some((l) => l === "respawned me")).toBe(true);
     expect(a.match.kills.get("bot-1")).toBeGreaterThanOrEqual(1);
-    console.log(log.filter((l) => l.startsWith("died")).length, "deaths in 90 s");
-    // 90 simulated seconds: over 5 s on a busy CI runner.
+    console.log(log.filter((l) => l.startsWith("died")).length, "deaths in 150 s");
+    // 150 simulated seconds (a disc near-miss only stings now, so kills take longer): well
+    // over 5 s on a busy CI runner.
   }, 30_000);
 
   it.each(MAPS.filter((m) => m.walled).map((m) => m.id))("%s has spawns spread inside its wall, on dry land", async (id) => {
@@ -78,6 +80,43 @@ describe("arena", () => {
       expect(Math.hypot(s.x - map.centre.x, s.z - map.centre.z)).toBeLessThan(map.radius);
       expect(inSea(course.terrain, s)).toBe(false);
     }
+  });
+
+  it("a teammate's disc throws you but doesn't hurt", async () => {
+    const { a, me, player, step } = await arena();
+    a.sameTeam = (x, y) => [x, y].every((id) => id === "me" || id === "mate");
+    step(0.5);
+    const f = { ...player.feet };
+    const blastAt = (owner: string) => a.fire(owner, WEAPONS.disc, { x: f.x, y: f.y + 3, z: f.z - 1.5 }, aimOf(0, -Math.PI / 2), { x: 0, y: 0, z: 0 });
+    blastAt("mate");
+    step(0.1);
+    expect(me.fighter.health).toBe(me.fighter.settings.maxHealth);
+    expect(Math.hypot(player.velocity.x, player.velocity.z)).toBeGreaterThan(1);
+    step(1);
+    player.teleport(f);
+    blastAt("enemy");
+    step(0.5);
+    expect(me.fighter.health).toBeLessThan(me.fighter.settings.maxHealth);
+  });
+
+  it("splash doesn't go through walls", async () => {
+    const { a, me, player, step, world } = await arena();
+    step(0.5);
+    const f = { ...player.feet };
+    // A disc fired straight down 3 m in front of you (you face -z).
+    const blast = () => a.fire("someone", WEAPONS.disc, { x: f.x, y: f.y + 3, z: f.z - 3 }, aimOf(0, -Math.PI / 2), { x: 0, y: 0, z: 0 });
+    blast();
+    step(0.5);
+    const open = me.fighter.settings.maxHealth - me.fighter.health;
+    expect(open).toBeGreaterThan(50);
+    me.fighter.respawn();
+    player.teleport(f);
+    // Now a wall between you and it.
+    world.createCollider(RAPIER.ColliderDesc.cuboid(4, 3, 0.3).setTranslation(f.x, f.y + 1.5, f.z - 2));
+    step(0.2);
+    blast();
+    step(0.5);
+    expect(me.fighter.health).toBe(me.fighter.settings.maxHealth);
   });
 
   it("the arena wall stops you skiing out, and discs burst on it", async () => {

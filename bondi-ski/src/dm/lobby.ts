@@ -48,10 +48,16 @@ export class Lobby {
     return this.room !== "";
   }
 
+  /** The room's link: it carries the map and game type so everyone ends up in the same game. */
   inviteLink(): string {
     const url = new URL(location.href);
-    url.search = "";
-    url.searchParams.set("room", this.room);
+    const keep = new URLSearchParams();
+    for (const k of ["map", "teams", "net"]) {
+      const v = url.searchParams.get(k);
+      if (v !== null) keep.set(k, v);
+    }
+    keep.set("room", this.room);
+    url.search = keep.toString();
     return url.toString();
   }
 
