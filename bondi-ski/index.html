@@ -40,46 +40,65 @@
     </div>
     <div id="overlay">
       <div class="card">
-        <h1>Bondi Ski</h1>
+        <header class="title">
+          <h1>Bondi Ski</h1>
+          <nav class="modes"><a class="dm" href="?">Deathmatch</a><a class="race" href="?mode=race">Time trial</a></nav>
+        </header>
         <p class="sub dm-only">Deathmatch on the Bondi coast: <span class="map-title"></span></p>
         <p class="sub race-only">Icebergs to Tamarama, the Bondi to Coogee coastal walk</p>
-        <p class="dm-only">Tribes on the clifftops: ski the real hills for speed, jet over the gaps, and hit people with discs.
-          A disc that catches someone in the air is a kill. First to the kill target wins.
-          On your own you'll face practice bots; make a room to play friends.
-          <a href="?mode=race">Time trial and races</a></p>
-        <p class="dm-only maps"></p>
-        <p class="race-only">Ski the real clifftops, Tribes style: hold Space and there's no friction, so every downhill is speed
+        <p class="dm-only lede">Tribes on the clifftops: ski the real hills for speed, jet over the gaps, and hit people with discs.
+          A disc that catches someone in the air is a kill. First to <span class="kill-target">15</span> kills wins.</p>
+        <p class="race-only lede">Ski the real clifftops, Tribes style: hold Space and there's no friction, so every downhill is speed
           and every crest is a launch. Jet up the climbs, keep your energy for when it counts, and hit every
-          gate to Tamarama Beach. Mind the edge: the sea sends you back a gate. <a href="?">Deathmatch</a></p>
-        <span class="play">Click to play</span> <button id="sound" type="button">Sound: on</button>
-        <div id="mp">
-          <h2>Race friends</h2>
-          <label>Your name <input name="name" maxlength="24" autocomplete="nickname" /></label>
-          <div class="out"><button class="create">Create a race room</button></div>
-          <div class="in" hidden>
-            <p class="status"></p>
-            <button class="copy">Copy invite link</button>
-            <button class="leave">Leave room</button>
+          gate to Tamarama Beach. Mind the edge: the sea sends you back a gate.</p>
+        <div class="setup">
+          <section id="prematch" class="dm-only">
+            <h2>Map</h2>
+            <div class="maplist"></div>
+          </section>
+          <div class="side">
+            <section class="dm-only botsbox">
+              <h2>Practice bots</h2>
+              <div class="bots" role="group" aria-label="Practice bots"></div>
+              <p class="bots-hint"></p>
+            </section>
+            <div id="mp">
+              <h2>Race friends</h2>
+              <label>Your name <input name="name" maxlength="24" autocomplete="nickname" /></label>
+              <div class="out"><button class="create">Create a race room</button></div>
+              <div class="in" hidden>
+                <p class="status"></p>
+                <button class="copy">Copy invite link</button>
+                <button class="leave">Leave room</button>
+              </div>
+            </div>
           </div>
         </div>
-        <dl>
-          <dt>WASD</dt><dd>Run; while skiing or flying, steer</dd>
-          <dt>Mouse</dt><dd>Look</dd>
-          <dt>Space</dt><dd>Tap to jump, hold to ski</dd>
-          <dt>Right mouse / Shift</dt><dd>Jetpack (uses energy, recharges when off)</dd>
-          <dt class="dm-only">Left mouse</dt><dd class="dm-only">Fire</dd>
-          <dt class="dm-only">1 / 2 / Q / wheel</dt><dd class="dm-only">Spinfusor / assault rifle / swap</dd>
-          <dt class="dm-only">R</dt><dd class="dm-only">Reload</dd>
-          <dt class="dm-only">F</dt><dd class="dm-only">Impact grenade</dd>
-          <dt class="dm-only">Tab</dt><dd class="dm-only">Scores</dd>
-          <dt>C / Ctrl</dt><dd>Crouch</dd>
-          <dt class="race-only">R</dt><dd class="race-only">Restart the run (in a race: leave it)</dd>
-          <dt class="race-only">Enter</dt><dd class="race-only">In a race room: start a race for everyone</dd>
-          <dt class="race-only">F</dt><dd class="race-only">Back to the last gate</dd>
-          <dt class="race-only">G</dt><dd class="race-only">Show or hide your best run's ghost</dd>
-          <dt>M</dt><dd>Sound on/off</dd>
-          <dt>Esc</dt><dd>Release mouse · tuning panel top-right</dd>
-        </dl>
+        <div class="actions">
+          <button id="play" class="play" type="button">Play</button>
+          <button id="sound" type="button">Sound: on</button>
+        </div>
+        <details class="controls">
+          <summary>Controls</summary>
+          <dl>
+            <dt>WASD</dt><dd>Run; while skiing or flying, steer</dd>
+            <dt>Mouse</dt><dd>Look</dd>
+            <dt>Space</dt><dd>Tap to jump, hold to ski</dd>
+            <dt>Right mouse / Shift</dt><dd>Jetpack (uses energy, recharges when off)</dd>
+            <dt class="dm-only">Left mouse</dt><dd class="dm-only">Fire</dd>
+            <dt class="dm-only">1 / 2 / Q / wheel</dt><dd class="dm-only">Spinfusor / assault rifle / swap</dd>
+            <dt class="dm-only">R</dt><dd class="dm-only">Reload</dd>
+            <dt class="dm-only">F</dt><dd class="dm-only">Impact grenade</dd>
+            <dt class="dm-only">Tab</dt><dd class="dm-only">Scores</dd>
+            <dt>C / Ctrl</dt><dd>Crouch</dd>
+            <dt class="race-only">R</dt><dd class="race-only">Restart the run (in a race: leave it)</dd>
+            <dt class="race-only">Enter</dt><dd class="race-only">In a race room: start a race for everyone</dd>
+            <dt class="race-only">F</dt><dd class="race-only">Back to the last gate</dd>
+            <dt class="race-only">G</dt><dd class="race-only">Show or hide your best run's ghost</dd>
+            <dt>M</dt><dd>Sound on/off</dd>
+            <dt>Esc</dt><dd>Release mouse · tuning panel top-right</dd>
+          </dl>
+        </details>
         <p class="credits"></p>
       </div>
     </div>

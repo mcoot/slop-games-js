@@ -11,7 +11,7 @@ and trees come from OpenStreetMap and Geoscience Australia elevation data (see
 
 ### Maps
 
-Pick one on the title card, or with `?map=` (a room's invite link carries its map):
+Pick one on the pre-match screen, or with `?map=` (a room's invite link carries its map):
 
 | Map | `?map=` | What it is |
 | --- | --- | --- |
@@ -81,7 +81,8 @@ middle of the coastal walk, hurts; the sea kills.
 Enemies you can see have their name and a health bar over them, and your hits float
 up as damage numbers (yellow for a midair, red for the kill).
 
-On your own you play practice bots (3 by default; Tuning → Match). They're simple:
+On your own you play practice bots: pick Off or 1 to 8 on the pre-match screen (3 by
+default; remembered, or `?bots=` in the link; also Tuning → Match). They're simple:
 they head for the nearest enemy, ski and jet on the way, strafe and hop up close, and
 fire discs at your feet with a rough lead. In a room (title card → Create a room, then
 share the link) it's players only.
@@ -105,7 +106,7 @@ share the link) it's players only.
 | `src/combat/arena.ts` | The fight without drawing: projectiles, damage to our fighters, spawns, the arena edge and the sea |
 | `src/combat/bot.ts` | Practice bots |
 | `src/net/combat.ts` | `CombatSession`: positions, shots, damage and deaths between players |
-| `src/dm/` | The game side: HUD, kill feed, scores, rooms; `src/view/combat.ts` draws projectiles, blasts, fighters and your weapon |
+| `src/dm/` | The game side: pre-match screen (map, bots), HUD, kill feed, scores, rooms; `src/view/combat.ts` draws projectiles, blasts, fighters and your weapon |
 
 Netcode: every client simulates every projectile from the shots it's told about
 (fast-forwarded by half the round trip), and **each player judges their own damage**:

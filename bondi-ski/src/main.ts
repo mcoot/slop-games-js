@@ -17,6 +17,7 @@ import { buildRoute, defaultRoute } from "./course/route";
 import { buildArenaWall, buildCoursePhysics, wallSpan } from "./course/physics";
 import { buildArenaStructures, clearRoute, loadArenaFile, stampArena } from "./course/arenaLevel";
 import { layoutFor, mapById, MAPS } from "./maps";
+import { Prematch } from "./dm/prematch";
 import { ForceField } from "./view/forceField";
 import { bondiMovementPresets, bondiSkiMovement } from "./movement";
 import { Jetpack } from "./jetpack";
@@ -102,22 +103,6 @@ async function main() {
   const arenaFile = MODE === "dm" && MAP.level ? await loadArenaFile(`maps/${MAP.level}.glb`, course) : null;
   if (arenaFile) stampArena(course, MAP.centre, MAP.radius, arenaFile);
   document.querySelector(".map-title")!.textContent = MAP.title;
-  // Other maps reload the page onto them (a room link carries its map along).
-  const mapsEl = document.querySelector<HTMLElement>(".maps")!;
-  mapsEl.append(`${MAP.blurb} Maps: `);
-  MAPS.forEach((m, i) => {
-    if (i > 0) mapsEl.append(" · ");
-    if (m === MAP) {
-      const b = document.createElement("b");
-      b.textContent = m.title;
-      mapsEl.append(b);
-    } else {
-      const a = document.createElement("a");
-      a.href = `?map=${m.id}`;
-      a.textContent = m.title;
-      mapsEl.append(a);
-    }
-  });
   document.querySelector(".credits")!.textContent =
     `${course.attribution.join(" · ")}. Terrain, the walk, buildings and trees come from this data.`;
 
@@ -330,6 +315,19 @@ async function main() {
   // ------------------------------------------------------------ deathmatch
   const dm =
     MODE === "dm" ? new Deathmatch({ scene, camera, world, course, layout, player, jet, look, audio, movement, toast: (t, s) => toast(t, s) }) : null;
+  let prematch: Prematch | null = null;
+  if (dm) {
+    // The pre-match screen: map and practice bots. Other maps reload the page onto them.
+    prematch = new Prematch({
+      maps: MAPS,
+      current: MAP,
+      bots: () => dm.settings.bots,
+      setBots: (n) => dm.setBots(n),
+      inRoom: () => dm.lobby.inRoom,
+    });
+    dm.lobby.onRender = () => prematch?.render();
+    document.querySelector(".kill-target")!.textContent = String(dm.settings.killTarget);
+  }
   if (dm) for (const g of view.gates) g.root.visible = false;
 
   // ------------------------------------------------------------ tuning
@@ -375,8 +373,7 @@ async function main() {
     tuning.addGroup("Assault rifle", WEAPONS.rifle, { ...weapon, burst: [1, 6, 1], burstInterval: [0.02, 0.3, 0.005], magazine: [0, 120, 1], reload: [0, 5, 0.1] });
     tuning.addGroup("Health & weapons", dm.fighter.settings, { maxHealth: [100, 3000, 10], regenDelay: [0, 30, 0.5], regenRate: [0, 500, 5], respawnTime: [0, 10, 0.5], switchTime: [0, 2, 0.05], stowedReload: [0, 15, 0.5] });
     const match = tuning.addGroup("Match", dm.settings, { killTarget: [1, 100, 1], resultsTime: [2, 30, 1] });
-    const bots = { count: dm.settings.bots };
-    match.add(bots, "count", 0, 8, 1).name("practice bots").onChange((n: number) => dm.setBots(n));
+    match.add(dm.settings, "bots", 0, 8, 1).name("practice bots").listen().onChange((n: number) => dm.setBots(n));
   }
   tuning.addGroup("Camera", cameraFeel, { sourceFov: [60, 130, 1], landingDip: true, headBob: [0, 0.08, 0.005] });
   tuning.addGroup("Mouse", look.settings, { sensitivity: [0.1, 10, 0.01], mYaw: true, mPitch: true, invertY: true });
@@ -604,15 +601,25 @@ async function main() {
 
   const overlay = document.querySelector<HTMLElement>("#overlay")!;
   const resume = document.querySelector<HTMLElement>("#resume")!;
-  overlay.addEventListener("click", () => {
+  const play = document.querySelector<HTMLButtonElement>("#play")!;
+  // Play with the button or by clicking outside the card; the card itself is for choosing.
+  overlay.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    if (target !== overlay && !target.closest("#play")) return;
     audio.unlock();
     void look.lock();
   });
   resume.addEventListener("click", () => void look.lock());
   look.onLockChanged((locked) => {
-    if (locked) resume.hidden = true;
+    if (locked) {
+      resume.hidden = true;
+      play.textContent = "Resume";
+    }
     overlay.hidden = locked;
-    if (!locked) input.releaseAll();
+    if (!locked) {
+      input.releaseAll();
+      prematch?.render();
+    }
   });
   window.addEventListener("beforeunload", (e) => {
     if (look.isLocked) e.preventDefault();

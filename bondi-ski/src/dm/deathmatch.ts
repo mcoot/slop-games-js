@@ -16,6 +16,7 @@ import { randomId, type Transport } from "../net/transport";
 import { Explosions, FighterView, ProjectileViews, Viewmodel } from "../view/combat";
 import { defaultBotSettings } from "../combat/bot";
 import { Lobby } from "./lobby";
+import { savedBots } from "./prematch";
 import { WorldOverlay, type LabelItem } from "./overlay";
 import { RAPIER } from "@slop/physics";
 
@@ -51,7 +52,7 @@ const BOT_COLOURS = ["#ff6b5e", "#ffa94d", "#b18cff", "#ff8fd8", "#e6f36b", "#3d
  * skiing and jetting; first to the kill target wins, then a new match starts.
  */
 export class Deathmatch {
-  readonly settings: DeathmatchSettings = { killTarget: 15, bots: 3, resultsTime: 10 };
+  readonly settings: DeathmatchSettings = { killTarget: 15, bots: savedBots(), resultsTime: 10 };
   readonly weaponSettings: Record<ProjectileId, WeaponDef> = WEAPONS;
   readonly fighter = new Fighter();
   readonly arena: Arena;
