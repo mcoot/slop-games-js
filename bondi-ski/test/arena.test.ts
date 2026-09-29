@@ -68,7 +68,8 @@ describe("arena", () => {
     expect(log.some((l) => l === "respawned me")).toBe(true);
     expect(a.match.kills.get("bot-1")).toBeGreaterThanOrEqual(1);
     console.log(log.filter((l) => l.startsWith("died")).length, "deaths in 90 s");
-  });
+    // 90 simulated seconds: over 5 s on a busy CI runner.
+  }, 30_000);
 
   it.each(MAPS.filter((m) => m.walled).map((m) => m.id))("%s has spawns spread inside its wall, on dry land", async (id) => {
     const { a, course, map } = await arena(id);

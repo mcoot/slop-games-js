@@ -25,18 +25,20 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 #energy .fill.low { background: #ff6b5e; }
 #perf { position: fixed; left: 16px; bottom: 56px; white-space: pre; font: 12px/1.5 ui-monospace, monospace; text-shadow: 0 1px 2px #000; pointer-events: none; }
 #perf[hidden] { display: none; }
-.card .maps { font-size: 13px; opacity: .9; }
 #fps { position: fixed; right: 272px; top: 6px; font: 600 12px/1.5 ui-monospace, monospace; color: rgba(255,255,255,.85); text-shadow: 0 1px 2px #000; pointer-events: none; }
 #fps[hidden] { display: none; }
 #toast { position: fixed; left: 50%; top: 96px; transform: translateX(-50%); text-align: center; font: 700 18px/1.5 system-ui, sans-serif; text-shadow: 0 2px 6px rgba(0,0,0,.7); pointer-events: none; transition: opacity .5s; }
-#overlay, #loading { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(6, 24, 40, 0.5); cursor: pointer; }
+#overlay, #loading { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(6, 24, 40, 0.5); }
+#overlay { overflow-y: auto; padding: 16px; cursor: pointer; }
+#overlay .card { margin: auto; cursor: default; }
 #overlay[hidden] { display: none; }
 #loading { cursor: default; font-size: 18px; }
 .card { max-width: 480px; margin: 16px; padding: 22px 26px; border-radius: 14px; background: var(--panel); backdrop-filter: blur(6px); }
 .card h1 { margin: 0 0 2px; font-size: 26px; }
 .card .sub { margin: 0 0 12px; opacity: .8; font-weight: 600; }
 .card p { margin: 0 0 14px; opacity: .9; }
-.card .play { display: inline-block; margin-bottom: 16px; padding: 8px 16px; border-radius: 8px; background: var(--accent); color: #1a1406; font-weight: 800; }
+.card .play { padding: 10px 28px; border: 0; border-radius: 8px; background: var(--accent); color: #1a1406; font: 800 16px/1.4 system-ui, sans-serif; cursor: pointer; }
+.card .play:hover { filter: brightness(1.08); }
 .card dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
 .card dt { font-weight: 700; white-space: nowrap; }
 .card dd { margin: 0; opacity: .88; }
@@ -52,8 +54,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 #end .splits .behind { color: var(--behind); }
 #resume { position: fixed; left: 50%; top: calc(50% + 28px); transform: translateX(-50%); padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #1a1406; font: 700 14px/1.5 system-ui, sans-serif; cursor: pointer; }
 #resume[hidden] { display: none; }
-#mp { margin: 0 0 16px; padding: 12px 14px; border-radius: 10px; background: rgba(255,255,255,.07); cursor: default; }
-#mp h2 { margin: 0 0 8px; font-size: 15px; }
+#mp { margin: 0; padding: 12px 14px; border-radius: 10px; background: rgba(255,255,255,.07); cursor: default; }
 #mp label { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 13px; }
 #mp input { flex: 1; padding: 5px 8px; border: 0; border-radius: 6px; background: rgba(255,255,255,.9); color: #102030; font: inherit; }
 #mp button { padding: 6px 12px; border: 0; border-radius: 6px; background: #6fd3ff; color: #0b2233; font: 700 13px/1.4 system-ui, sans-serif; cursor: pointer; }
@@ -72,7 +73,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 #end .field { width: 100%; margin: 0 0 16px; border-collapse: collapse; font: 13px/1.6 ui-monospace, monospace; }
 #end .field:empty { display: none; }
 #end .field .self { background: rgba(255,255,255,.1); }
-#sound { margin: 0 0 16px 8px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(255,255,255,.15); color: var(--ink); font: 700 13px/1.4 system-ui, sans-serif; cursor: pointer; vertical-align: top; }
+#sound { padding: 10px 14px; border: 0; border-radius: 8px; background: rgba(255,255,255,.15); color: var(--ink); font: 700 13px/1.4 system-ui, sans-serif; cursor: pointer; vertical-align: top; }
 #sound[aria-pressed="true"] { background: rgba(255,107,94,.35); }
 #standings .row.out { opacity: .5; }
 #end .again { margin: 0 0 12px; font-size: 13px; opacity: .85; }
@@ -117,3 +118,34 @@ body:not([data-mode="race"]) #speed { bottom: 16px; }
 #labels .dmg { font: 900 22px/1 system-ui, sans-serif; color: #fff; text-shadow: 0 2px 4px #000, 0 0 2px #000; white-space: nowrap; }
 #labels .dmg.midair { color: #ffd84a; font-size: 26px; }
 #labels .dmg.kill { color: #ff5a4a; font-size: 30px; }
+
+/* Title card / pre-match screen */
+body:not([data-mode="race"]) .card { max-width: 820px; }
+.card .title { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 4px; }
+.card .modes { display: flex; padding: 3px; border-radius: 999px; background: rgba(255,255,255,.08); flex-shrink: 0; }
+.card .modes a { padding: 5px 12px; border-radius: 999px; color: var(--ink); text-decoration: none; font: 700 12px/1.4 system-ui, sans-serif; opacity: .75; }
+.card .modes a:hover { opacity: 1; }
+body:not([data-mode="race"]) .modes a.dm, body[data-mode="race"] .modes a.race { background: var(--accent); color: #1a1406; opacity: 1; }
+.card .lede { font-size: 13px; }
+.card h2 { margin: 0 0 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
+.card .setup { display: grid; gap: 14px; margin-bottom: 16px; }
+body:not([data-mode="race"]) .card .setup { grid-template-columns: 1.25fr 1fr; }
+.card .side { display: flex; flex-direction: column; gap: 14px; }
+.card .botsbox { padding: 12px 14px; border-radius: 10px; background: rgba(255,255,255,.07); }
+.card .maplist { display: grid; gap: 6px; }
+.card .map { display: grid; gap: 2px; padding: 9px 12px; border: 2px solid transparent; border-radius: 10px; background: rgba(255,255,255,.07); color: var(--ink); text-align: left; font: 12px/1.35 system-ui, sans-serif; cursor: pointer; }
+.card .map b { font-size: 14px; }
+.card .map span { opacity: .75; }
+.card .map:hover { background: rgba(255,255,255,.12); }
+.card .map[aria-pressed="true"] { border-color: var(--accent); background: rgba(255,207,61,.12); cursor: default; }
+.card .bots { display: flex; gap: 4px; margin-bottom: 8px; }
+.card .bots button { flex: 1; padding: 6px 0; border: 0; border-radius: 6px; background: rgba(255,255,255,.12); color: var(--ink); font: 700 13px/1.4 system-ui, sans-serif; cursor: pointer; }
+.card .bots button:not([aria-pressed="true"]):hover:not(:disabled) { background: rgba(255,255,255,.2); }
+.card .bots button[aria-pressed="true"] { background: #6fd3ff; color: #0b2233; }
+.card .bots button:disabled { opacity: .35; cursor: default; }
+.card .bots-hint { margin: 0; font-size: 12px; opacity: .75; }
+.card .actions { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+.card .controls summary { cursor: pointer; font-size: 12px; font-weight: 700; opacity: .75; margin-bottom: 8px; }
+@media (max-width: 640px) {
+  body:not([data-mode="race"]) .card .setup { grid-template-columns: 1fr; }
+}

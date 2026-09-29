@@ -77,6 +77,7 @@ export class Lobby {
     this.el.querySelector<HTMLElement>(".out")!.hidden = this.inRoom;
     this.el.querySelector<HTMLElement>(".in")!.hidden = !this.inRoom;
     if (this.inRoom) this.el.querySelector(".status")!.textContent = this.status();
+    this.onRender?.();
   }
 
   private bind(): void {
@@ -105,4 +106,6 @@ export class Lobby {
   }
 
   onRename: ((name: string) => void) | null = null;
+  /** After joining, leaving or the room changing. */
+  onRender: (() => void) | null = null;
 }
