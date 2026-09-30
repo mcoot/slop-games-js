@@ -5,13 +5,6 @@ import { colourFor, INTERPOLATION_DELAY_MS, SEND_INTERVAL_MS, type Snapshot } fr
 import type { Transport } from "./transport";
 import type { TeamId } from "../combat/teams";
 
-/**
- * A room of fighters. Carries positions (for drawing and for projectiles to hit), shots,
- * and each player's own report of the damage they took and their deaths: every client
- * simulates every projectile, and each player is the judge of what hit *them*, so what
- * you dodged on your screen really missed. Scores are counted by everyone from the
- * death reports.
- */
 /** A fighter's pose: where their feet are and where they look. */
 export interface Pose {
   x: number;
@@ -87,6 +80,12 @@ export interface CombatEvents {
 
 const UNNAMED = "…";
 
+/**
+ * A room of fighters on the game server. Carries positions (for drawing and for
+ * projectiles to hit) and shots between players; the server judges the fight and sends
+ * the damage, deaths, respawns and matches. Every client still simulates every
+ * projectile, for drawing.
+ */
 export class CombatSession {
   readonly peers = new Map<string, RemoteFighter>();
   private seq = 0;
@@ -134,11 +133,6 @@ export class CombatSession {
       this.peers.delete(id);
       events.peersChanged();
     });
-  }
-
-  /** A game server judges the fight in this room. */
-  get refereed(): boolean {
-    return this.transport.refereed === true;
   }
 
   get selfId(): string {
@@ -189,18 +183,6 @@ export class CombatSession {
 
   fire(m: Omit<Extract<NetMessage, { t: "fire" }>, "t">): void {
     this.transport.send({ t: "fire", ...m });
-  }
-
-  hurt(by: string, w: string, dmg: number, hp: number, midair: boolean): void {
-    this.transport.send({ t: "hurt", by, w, dmg, hp, midair });
-  }
-
-  died(by: string, w: string): void {
-    this.transport.send({ t: "died", by, w });
-  }
-
-  startMatch(id: string, target: number): void {
-    this.transport.send({ t: "match", id, target });
   }
 
   leave(): void {

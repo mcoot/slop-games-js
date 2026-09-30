@@ -27,12 +27,11 @@ export function serverUrl(): string {
 
 /**
  * A room on the game server: everyone connects to it rather than to each other, and in a
- * deathmatch it judges the fight (`refereed`). Reconnects by itself if the connection
+ * deathmatch it judges the fight. Reconnects by itself if the connection
  * drops, keeping our id so we come back as ourselves.
  */
 export class ServerTransport implements Transport {
   readonly selfId = randomId();
-  readonly refereed = true;
   private socket: Socket | null = null;
   private readonly peers = new Set<string>();
   private readonly queue: string[] = [];

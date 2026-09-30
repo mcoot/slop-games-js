@@ -8,7 +8,6 @@ import { randomId, type Transport } from "../net/transport";
  */
 export class Lobby {
   room = "";
-  reach = "";
   private readonly el = document.querySelector<HTMLElement>("#mp")!;
   private fallbackName = `Skier ${Math.floor(Math.random() * 90 + 10)}`;
 
@@ -52,7 +51,7 @@ export class Lobby {
   inviteLink(): string {
     const url = new URL(location.href);
     const keep = new URLSearchParams();
-    for (const k of ["map", "teams", "net", "server"]) {
+    for (const k of ["map", "teams", "server"]) {
       const v = url.searchParams.get(k);
       if (v !== null) keep.set(k, v);
     }
@@ -83,9 +82,7 @@ export class Lobby {
   join(room: string): void {
     this.room = room;
     // Deathmatch rooms are separate from race rooms with the same code.
-    const { transport, reach } = connect(`dm-${room}`);
-    this.reach = reach;
-    this.onJoin(transport);
+    this.onJoin(connect(`dm-${room}`));
     this.render();
   }
 

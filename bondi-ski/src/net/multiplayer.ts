@@ -12,7 +12,6 @@ import { randomId } from "./transport";
 export class Multiplayer {
   session: RaceSession | null = null;
   room = "";
-  private reach = "";
   private readonly views = new Map<string, RacerView>();
   private readonly lobby = document.querySelector<HTMLElement>("#mp")!;
   private readonly standingsEl = document.querySelector<HTMLElement>("#standings")!;
@@ -75,8 +74,7 @@ export class Multiplayer {
   join(room: string): void {
     this.leave();
     this.room = room;
-    const { transport, reach } = connect(`race-${room}`);
-    this.reach = reach;
+    const transport = connect(`race-${room}`);
     this.session = new RaceSession(
       transport,
       this.name,
@@ -201,7 +199,7 @@ export class Multiplayer {
     if (inRoom) {
       const n = (this.session?.peers.size ?? 0) + 1;
       this.lobby.querySelector(".status")!.textContent =
-        `Room ${this.room} · ${n} ${n === 1 ? "skier" : "skiers"} here · connects ${this.reach === "internet" ? "over the internet" : this.reach === "game server" ? "through the game server" : "tabs on this computer only"}. Press Enter in game to start a race.`;
+        `Room ${this.room} · ${n} ${n === 1 ? "skier" : "skiers"} here. Press Enter in game to start a race.`;
     }
   }
 }

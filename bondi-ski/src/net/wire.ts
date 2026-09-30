@@ -2,9 +2,8 @@ import type { NetMessage } from "./protocol";
 
 /**
  * Between a player and the game server (JSON over a WebSocket). The server relays
- * players' messages to each other like the peer-to-peer rooms do, and speaks for itself
- * as `SERVER_ID`: pings, and in a deathmatch the damage, deaths, respawns and matches it
- * judges.
+ * players' messages to each other, and speaks for itself as `SERVER_ID`: pings, and in a
+ * deathmatch the damage, deaths, respawns and matches it judges.
  */
 export type ClientFrame =
   /** First thing on connecting: the room, and who I am (my id is mine to pick). */

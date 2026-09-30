@@ -18,10 +18,10 @@ interface Member {
 }
 
 /**
- * One room on the server. Everyone's messages are passed on to everyone else, as in a
- * peer-to-peer room; in a deathmatch room a `Referee` also judges the fight, on the map
- * and game of the room's host (whoever has been in longest, as players work out
- * themselves), and players' own claims of damage and deaths are dropped.
+ * One room on the server. Everyone's messages are passed on to everyone else, except
+ * claims of damage, deaths and matches, which only the server makes. In a deathmatch
+ * room a `Referee` judges the fight, on the map and game of the room's host (whoever has
+ * been in longest, as players work out themselves).
  */
 export class Room {
   readonly members = new Map<string, Member>();
@@ -93,14 +93,13 @@ export class Room {
         if (!finite(m.x, m.y, m.z, m.vx, m.vy, m.vz)) return;
         r?.fire(from, m.w, { x: m.x, y: m.y, z: m.z }, { x: m.vx, y: m.vy, z: m.vz });
         break;
-      // The referee decides these in a deathmatch; players can't claim them.
+      // Only the server says who's hurt or dead, and when matches start.
       case "hurt":
       case "died":
       case "match":
       case "hit":
       case "spawn":
-        if (r) return;
-        break;
+        return;
     }
     const frame: ServerFrame = { k: "msg", from, m };
     if (to) this.members.get(to)?.send(frame);
