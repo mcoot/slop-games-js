@@ -142,12 +142,14 @@ start-up, exactly as the game does. Weapon numbers are the defaults in
 
 ```sh
 pnpm server             # in bondi-ski/: bundle to dist-server/ and run on :8787
-pnpm deploy-server      # deploy to fly.io (server/fly.toml, app slop-bondi-ski, Sydney)
+pnpm deploy-server      # deploy to fly.io by hand (server/fly.toml, app slop-bondi-ski, Sydney)
 ```
 
 The first deploy needs `fly apps create slop-bondi-ski` (or another name: then change
 `app` in `server/fly.toml` and `DEFAULT_SERVER` in `src/net/server.ts`). It runs one
-machine, which sleeps when nobody's connected and wakes on the first connection.
+machine, which sleeps when nobody's connected and wakes on the first connection. CI
+redeploys it on every push to `master` that touches `bondi-ski/`, `packages/` or the
+lockfile (a redeploy drops the rooms in play; players reconnect by themselves).
 
 ## Running it
 
