@@ -9,8 +9,10 @@ Everything is one pnpm workspace: shared, game-agnostic packages in [`packages/`
 and Blender tools in [`tools/`](tools), used by each game's folder. `pnpm install` once at
 the root; `pnpm test` and `pnpm typecheck` there cover everything.
 
-Live at <https://slop-games.spearritt.dev/>, deployed to GitHub Pages on every push to
-`master` by `.github/workflows/pages.yml`.
+Live at <https://slop-games.spearritt.dev/>. `.github/workflows/ci.yml` checks every PR
+(typecheck, tests, site build); on a push to `master` the same run deploys the site to
+GitHub Pages, and Bondi Ski's game server to fly.io if anything it's built from changed
+(it needs a `FLY_API_TOKEN` repository secret).
 
 ## Adding a game
 

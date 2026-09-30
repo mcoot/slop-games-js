@@ -1,5 +1,8 @@
 name: CI
 
+# One workflow for everything: every PR and push to master is checked and the site built
+# once; a push to master then deploys that same build to GitHub Pages, and deploys Bondi
+# Ski's game server to fly.io when something it's built from changed.
 on:
   pull_request:
   push:
@@ -11,13 +14,19 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a master run part way through a deploy; PR runs can make way for newer pushes.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.changes.outputs.server }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The previous commit too, to see what this push changed.
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -26,5 +35,50 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
-      # Builds every game in games.json, exactly as the Pages deploy does.
+      # Builds every game in games.json into _site/.
       - run: node site/build.mjs
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      # Does this push touch anything the game server is built from? (A manual run always deploys it.)
+      - id: changes
+        if: github.event_name != 'pull_request'
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || git diff --name-only HEAD^1 HEAD | grep -qE '^(bondi-ski/|packages/|pnpm-lock\.yaml|\.dockerignore)'; then
+            echo "server=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "server=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy-site:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  deploy-server:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && needs.test.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: fly-bondi-ski
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # Built on fly.io's builders from the repo root (the server needs the workspace).
+      - run: flyctl deploy . --config bondi-ski/server/fly.toml --dockerfile bondi-ski/server/Dockerfile --ha=false --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
