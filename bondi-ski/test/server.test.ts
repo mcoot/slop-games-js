@@ -130,7 +130,6 @@ describe("a server room", () => {
     sessions.b = mk("b", 2000);
     await Promise.resolve();
     const { a, b } = sessions as { a: CombatSession; b: CombatSession };
-    expect(a.refereed).toBe(true);
     expect(room.referee).not.toBeNull();
     expect(a.peers.get(b.selfId)?.name).toBe("b");
 
@@ -141,8 +140,10 @@ describe("a server room", () => {
     a.tick(state(c.z + 10));
     b.tick(state(c.z));
     // b claims a hurt them: nobody hears it.
-    b.hurt(a.selfId, "disc", 900, 0, false);
+    b.transport.send({ t: "hurt", by: a.selfId, w: "disc", dmg: 900, hp: 0, midair: false });
+    b.transport.send({ t: "died", by: a.selfId, w: "disc" });
     expect(seen.a).not.toContain("hurt b 900");
+    expect(seen.a).not.toContain("died b");
     // a fires straight at b: the server decides.
     a.fire({ w: "disc", x: c.x, y: y + 1, z: c.z + 9, vx: 0, vy: 0, vz: -WEAPONS.disc.speed });
     expect(seen.b).toContain("fire disc");

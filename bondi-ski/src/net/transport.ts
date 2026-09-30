@@ -1,14 +1,11 @@
 import { isNetMessage, type NetMessage } from "./protocol";
 
 /**
- * How racers reach each other. The race code only sees this interface, so the
- * connection underneath can be tabs on one computer (for testing), or WebRTC over the
- * internet.
+ * How players reach each other. The game only sees this interface: in the game it's the
+ * game server (`ServerTransport`); in tests, an in-memory bus.
  */
 export interface Transport {
   readonly selfId: string;
-  /** A game server judges the fight (it sends damage, deaths and respawns); otherwise each player judges their own. */
-  readonly refereed?: boolean;
   /** Peers already known (joins can arrive before anyone is listening). */
   peerIds(): string[];
   /** To everyone in the room, or one peer. */
@@ -28,7 +25,7 @@ export function randomId(length = 8): string {
   return s;
 }
 
-/** A broadcast medium: what BroadcastChannel and the in-memory test hub both look like. */
+/** A broadcast medium, like the in-memory test hub. */
 export interface Bus {
   post(data: unknown): void;
   listen(fn: (data: unknown) => void): void;
@@ -41,7 +38,7 @@ type Envelope =
   | { kind: "msg"; from: string; to?: string; message: NetMessage };
 
 /**
- * A transport over a broadcast bus. Peers announce themselves, answer newcomers, send a
+ * A transport over a broadcast bus, for testing sessions without a server. Peers announce themselves, answer newcomers, send a
  * heartbeat, and count as gone after a few seconds of silence (a closed tab can't say bye).
  */
 export class BusTransport implements Transport {
@@ -120,16 +117,6 @@ export class BusTransport implements Transport {
     if (!this.peers.delete(id)) return;
     for (const fn of this.leaveFns) fn(id);
   }
-}
-
-/** Tabs in this browser, by room: for trying multiplayer on one computer. */
-export function localTransport(room: string): Transport {
-  const channel = new BroadcastChannel(`bondi-ski.room.${room}`);
-  return new BusTransport({
-    post: (d) => channel.postMessage(d),
-    listen: (fn) => channel.addEventListener("message", (e) => fn(e.data)),
-    close: () => channel.close(),
-  });
 }
 
 /**

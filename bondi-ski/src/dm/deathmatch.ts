@@ -117,8 +117,6 @@ export class Deathmatch {
             this.hurtFlash = Math.min(1, this.hurtFlash + hit.damage / 400);
             if (by !== this.me.id) ctx.audio.hurt();
           }
-          // Tell the room (not for the arena edge's steady trickle: the death report covers that).
-          if (w.id !== "edge") this.session?.hurt(by, w.id, hit.damage, Math.round(health), hit.midair);
         } else if (by === this.me.id) {
           // We hit a bot.
           this.hitMarker(health <= 0, hit.midair);
@@ -130,7 +128,6 @@ export class Deathmatch {
         this.addFeed(by, victim, w, hit.midair);
         if (victim === this.me.id) {
           this.killedBy = by === this.me.id ? "yourself" : this.nameOf(by);
-          this.session?.died(by, w.id);
         }
         this.checkWinner();
       },
@@ -155,7 +152,7 @@ export class Deathmatch {
       () => this.leaveRoom(),
       () => {
         const n = (this.session?.peers.size ?? 0) + 1;
-        return `Room ${this.lobby.room} · ${n} ${n === 1 ? "player" : "players"} here · ${reachText(this.lobby.reach)}`;
+        return `Room ${this.lobby.room} · ${n} ${n === 1 ? "player" : "players"} here`;
       },
     );
     this.lobby.onRename = (name) => this.session?.setName(name);
@@ -225,14 +222,9 @@ export class Deathmatch {
       air: !p.grounded,
     });
 
-    // After a match: a break for the results, then a new one (a game server starts its own).
+    // After a match on your own: a break for the results, then a new one (in a room, the server starts them).
     const m = this.arena.match;
-    if (m.over && !this.arena.refereed && this.arena.now() - m.endedAt > this.settings.resultsTime) {
-      // The host starts the next match for the room.
-      const id = randomId(6);
-      if (this.session?.isHost) this.session.startMatch(id, this.target);
-      this.newMatch(id);
-    }
+    if (m.over && !this.arena.refereed && this.arena.now() - m.endedAt > this.settings.resultsTime) this.newMatch(randomId(6));
   }
 
   /** Called every frame. */
@@ -285,7 +277,8 @@ export class Deathmatch {
   private joinRoom(transport: Transport): void {
     this.arena.removeBots();
     this.dropViews();
-    this.arena.refereed = transport.refereed === true;
+    // The game server judges the fight in a room.
+    this.arena.refereed = true;
     this.session = new CombatSession(transport, this.lobby.name, {
       peersChanged: () => {
         this.followHost();
@@ -308,7 +301,7 @@ export class Deathmatch {
       },
       died: (victim, by, w) => {
         if (victim === this.session?.selfId) {
-          // Only a game server tells us we died (otherwise we judge that ourselves).
+          // The server says we died.
           const f = this.fighter;
           f.health = 0;
           f.alive = false;
@@ -641,10 +634,6 @@ export class Deathmatch {
       }
     }
   }
-}
-
-function reachText(reach: string): string {
-  return reach === "internet" ? "over the internet" : reach === "game server" ? "on the game server" : "tabs on this computer only";
 }
 
 function escape(s: string): string {

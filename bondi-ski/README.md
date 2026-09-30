@@ -125,20 +125,17 @@ their last state (velocity, plus gravity in the air), not where they were a frac
 second ago; corrections fade out over ~80 ms. At skiing speed the difference is metres,
 so without it you can't hit anyone moving. Tuning > Network turns it off to compare.
 Every client simulates every projectile it's told about (fast-forwarded by the sender's
-latency). Then there are two ways to judge damage:
-
-- **Peer to peer** (the default): each player judges their own damage, reports it to the
-  room, and everyone counts kills from those reports. No server, so a player could cheat.
-- **Game server** (`?net=server`): the server (`server/`) flies every projectile itself
-  against where each player is now, and owns health, deaths, respawns and the score.
-  Players still move themselves (so skiing and disc jumps feel instant); your own blasts
-  push you straight away, anything else's knockback arrives from the server. `?server=`
-  points at another server, e.g. `?net=server&server=ws://localhost:8787` locally.
+latency), for drawing, but in a room the **game server** (`server/`) judges the fight:
+it flies every projectile itself against where each player is now, and owns health,
+deaths, respawns and the score. Players still move themselves (so skiing and disc jumps
+feel instant); your own blasts push you straight away, anything else's knockback arrives
+from the server. On your own with bots, the game judges the fight in the browser.
+`?server=` points at another server, e.g. `?server=ws://localhost:8787` locally.
 
 ### The game server
 
 A small Node process (`server/main.ts`): rooms over WebSockets, messages passed on
-between players like a peer-to-peer room, and in a deathmatch a `Referee` on the room
+between players, and in a deathmatch a `Referee` on the room
 host's map. It builds every map's collision from `public/course` and `public/maps` at
 start-up, exactly as the game does. Weapon numbers are the defaults in
 `src/combat/weapons.ts`: tuning them in your browser doesn't change the server.
@@ -218,7 +215,7 @@ speed at skiing pace.
 
 ### Multiplayer
 
-Peer to peer, with no server of our own. On the title card, "Create a race room" puts a
+Through the game server, like deathmatch rooms (with no referee). On the title card, "Create a race room" puts a
 room code in the page's link (`?room=...`); anyone who opens the link joins. Press Enter
 in game and everyone in the room lines up at the start, counts down together and races;
 other skiers are drawn with name tags, live standings sit top right, and the finish card
@@ -229,9 +226,8 @@ best or ghost.
 | --- | --- |
 | `src/net/protocol.ts` | The messages: hello (name, colour), positions (20 a second), countdown, gates, finish, ping |
 | `src/net/session.ts` | `RaceSession`: who's here, the shared countdown (allowing for message delay), interpolating other racers 120 ms behind, standings |
-| `src/net/transport.ts`, `src/net/trystero.ts`, `src/net/connect.ts` | Connections. Over the internet: WebRTC data channels, with the handshake through public Nostr relays via [Trystero](https://github.com/dmotz/trystero) (MIT). `?net=local` connects only tabs in this browser, for testing offline |
+| `src/net/transport.ts`, `src/net/server.ts`, `src/net/connect.ts` | Connections: a WebSocket to the game server (`src/net/wire.ts` is what goes over it); an in-memory bus for tests |
 | `src/net/multiplayer.ts` | The game side: lobby controls, racer figures, countdown and standings |
 
 Movement stays client-side (no authority), which is fine for friendly races. A tab in the
 background pauses the game, so its skier freezes (and misses "go") until you come back.
-Some strict networks block WebRTC between peers; a TURN relay would fix that if it comes up.
