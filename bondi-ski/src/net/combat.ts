@@ -1,4 +1,6 @@
 import type { NetMessage } from "./protocol";
+import { extrapolate } from "./predict";
+import { SERVER_ID } from "./wire";
 import { colourFor, INTERPOLATION_DELAY_MS, SEND_INTERVAL_MS, type Snapshot } from "./session";
 import type { Transport } from "./transport";
 import type { TeamId } from "../combat/teams";
@@ -76,7 +78,11 @@ export interface CombatEvents {
   fire(from: string, m: Extract<NetMessage, { t: "fire" }>, age: number): void;
   hurt(victim: string, m: Extract<NetMessage, { t: "hurt" }>): void;
   died(victim: string, by: string, weapon: string): void;
-  match(id: string, target: number): void;
+  match(id: string, target: number, board?: Extract<NetMessage, { t: "match" }>): void;
+  /** From a game server: we were hurt. */
+  hit?(m: Extract<NetMessage, { t: "hit" }>): void;
+  /** From a game server: we're back in, here. */
+  spawn?(at: { x: number; y: number; z: number }): void;
 }
 
 const UNNAMED = "…";
@@ -128,6 +134,11 @@ export class CombatSession {
       this.peers.delete(id);
       events.peersChanged();
     });
+  }
+
+  /** A game server judges the fight in this room. */
+  get refereed(): boolean {
+    return this.transport.refereed === true;
   }
 
   get selfId(): string {
@@ -213,11 +224,7 @@ export class CombatSession {
     const last = f.snapshots.at(-1);
     if (!last) return null;
     const ahead = Math.min(Math.max((this.now() - last.at) / 1000 + f.latency, 0), netSettings.maxAhead);
-    const g = last.air ? netSettings.gravity : 0;
-    const x = last.x + last.vx * ahead;
-    const z = last.z + last.vz * ahead;
-    let y = last.y + last.vy * ahead - 0.5 * g * ahead * ahead;
-    if (last.air && this.ground) y = Math.max(y, Math.min(this.ground(x, z), last.y + last.vy * ahead));
+    const { x, y, z } = extrapolate(last, ahead, netSettings.gravity, this.ground);
     return { x, y, z, yaw: last.yaw, pitch: last.pitch };
   }
 
@@ -302,7 +309,14 @@ export class CombatSession {
         this.events.died(from, m.by, m.w);
         return;
       case "match":
-        this.events.match(m.id, m.target);
+        this.events.match(m.id, m.target, m);
+        return;
+      // Only a game server judges damage and respawns.
+      case "hit":
+        if (from === SERVER_ID) this.events.hit?.(m);
+        return;
+      case "spawn":
+        if (from === SERVER_ID) this.events.spawn?.({ x: m.x, y: m.y, z: m.z });
         return;
       default:
         return;

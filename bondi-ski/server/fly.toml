@@ -1,0 +1,32 @@
+# Bondi Ski's game server on fly.io, in Sydney. Deploy from the repository root:
+#   pnpm --filter @slop/bondi-ski deploy-server
+# One machine only: rooms live in its memory, so a second machine would split them.
+app = "slop-bondi-ski"
+primary_region = "syd"
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Asleep when nobody's playing; the first player to connect wakes it (a few seconds).
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 100
+    hard_limit = 150
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    path = "/"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -8,6 +8,7 @@
     "tokyo-station-chase/games/*/vite.config.ts",
     "bondi-ski/src",
     "bondi-ski/test",
-    "bondi-ski/vite.config.ts"
+    "bondi-ski/vite.config.ts",
+    "bondi-ski/server"
   ]
 }

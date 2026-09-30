@@ -1,0 +1,7 @@
+**/node_modules
+.git
+_site
+**/dist
+**/dist-server
+**/*.blend
+**/*.blend1

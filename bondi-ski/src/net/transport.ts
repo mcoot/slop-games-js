@@ -7,6 +7,8 @@ import { isNetMessage, type NetMessage } from "./protocol";
  */
 export interface Transport {
   readonly selfId: string;
+  /** A game server judges the fight (it sends damage, deaths and respawns); otherwise each player judges their own. */
+  readonly refereed?: boolean;
   /** Peers already known (joins can arrive before anyone is listening). */
   peerIds(): string[];
   /** To everyone in the room, or one peer. */

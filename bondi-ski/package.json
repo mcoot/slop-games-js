@@ -10,7 +10,10 @@
     "test": "vitest run",
     "fetch-data": "node tools/fetch-data.mjs",
     "build-course": "node tools/build-course.mjs",
-    "export-maps": "node ../tools/export-levels.mjs assets-src/maps public/maps"
+    "export-maps": "node ../tools/export-levels.mjs assets-src/maps public/maps",
+    "build-server": "vite build --config server/vite.config.ts",
+    "server": "vite build --config server/vite.config.ts && node dist-server/main.js",
+    "deploy-server": "cd .. && fly deploy . --config bondi-ski/server/fly.toml --dockerfile bondi-ski/server/Dockerfile --ha=false"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
@@ -22,9 +25,11 @@
     "@slop/physics": "workspace:*",
     "@slop/tuning": "workspace:*",
     "three": "^0.186.1",
-    "trystero": "^0.25.4"
+    "trystero": "^0.25.4",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.2",
     "pngjs": "^7.0.0"
   }
 }
