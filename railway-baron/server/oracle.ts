@@ -194,7 +194,9 @@ export class StubOracle implements Oracle {
     await this.wait();
     const bad = norm(secret.answer).length < 2 || /\b(ignore|instructions|not valid)\b/i.test(secret.answer);
     const category = bad ? "not_valid" : /^[A-Z]/.test(secret.answer.trim()) ? "person" : "thing";
-    return { category, p: 0.9, brain: { model: "stub", request, response: { stub: true, category }, ms: this.delay } };
+    const probabilities = Object.fromEntries(Object.keys(CATEGORIES).map((c) => [c, c === category ? 0.9 : 0.1 / 3]));
+    const response = { model: "stub", answers: { category: { type: "choice", choice: category, probabilities, confidence: 0.9 } }, usage: { input_tokens: 0, output_tokens: 0, cost: 0 } };
+    return { category, p: 0.9, brain: { model: "stub", request, response, ms: this.delay, cost: 0 } };
   }
 
   async ask(secret: Secret, question: string): Promise<Judgement & { brain: Brain }> {
@@ -207,12 +209,15 @@ export class StubOracle implements Oracle {
     for (const c of norm(secret.answer) + "|" + norm(question)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
     const j: Judgement = {
       yes: h % 2 ? 0.9 : 0.1,
-      isYesNo: question.trim().endsWith("?") ? 0.95 : 0.2,
+      isYesNo: question.trim().endsWith("?") && !/^(what|who|where|when|why|how|which)\b/i.test(question.trim()) ? 0.95 : 0.2,
       isGuess: isGuess ? 0.9 : 0.1,
       guessCorrect: isGuess && named === norm(secret.answer) ? 0.95 : 0.05,
       ...this.rule?.(secret, question),
     };
-    return { ...j, brain: { model: "stub", request, response: { stub: true, ...j }, ms: this.delay } };
+    const n = (v: number) => ({ type: "noul", noul: v });
+    const answers = { answer: n(j.yes), is_yes_no: n(j.isYesNo), is_guess: n(j.isGuess), guess_correct: n(j.guessCorrect) };
+    const response = { model: "stub", answers, usage: { input_tokens: 0, output_tokens: 0, cost: 0 } };
+    return { ...j, brain: { model: "stub", request, response, ms: this.delay, cost: 0 } };
   }
 
   private async wait(): Promise<void> {

@@ -12,5 +12,12 @@
     "description": "Tribes-style deathmatch on the real Bondi to Coogee clifftops: ski, jet and fight with discs and burst rifles. Time trials and races too.",
     "dir": "bondi-ski",
     "dist": "dist"
+  },
+  {
+    "slug": "railway-baron",
+    "title": "Tied to the Tracks",
+    "description": "Twenty questions against an evil railway baron: his robot answers your yes-or-no questions with a decision model, and the train is coming for your pet.",
+    "dir": "railway-baron",
+    "dist": "dist"
   }
 ]

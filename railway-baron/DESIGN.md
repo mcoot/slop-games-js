@@ -98,9 +98,9 @@ probabilities visible:
   once the round is over, and the baron can watch it live.
 - **Server logs**: one JSON line per model call (request, response, latency) in the
   fly logs.
-- **A command-line tool** (`pnpm --filter @slop/railway-baron ask "giraffe" "Is it
-  an animal?"`) that runs the same requests outside the game, for playing with
-  prompts and thresholds.
+- **Command-line tools**: `ask` runs the same requests outside the game, for playing
+  with prompts and thresholds, and `eval` scores the model on a small fixed set of
+  known cases (about 30 calls, a fraction of a cent on clef-flash). See the README.
 
 ### 4. Locking it down
 
@@ -137,6 +137,23 @@ against bots and strangers, not real security, which is fine for this.
 A fixed time per round (8 minutes to start with), shown as the train getting closer
 along the track. The server owns the clock; clients just draw it. While the robot is
 answering, the clock keeps running.
+
+### 7. Testing
+
+Whole-system tests rather than small unit tests: each test starts the real server on a
+free port and plays over real WebSockets, with only the model swapped for a stub
+(`StubOracle`). They cover a round from lobby to freed pet, the yes/no/unsure bands,
+refusals and errors not counting, running out of questions, the train arriving while
+the robot is thinking, majority agreement, reconnecting to your seat, and who may do
+what. The lockdown has its own tests that try every way in we could think of (wrong,
+odd or missing codes, no code configured, joining rooms that don't exist or have
+closed, game messages before joining, plain HTTP, junk frames) and check that no room
+exists and the model was never called. A third set checks the exact requests we send
+OpenRouter against its published schema, with fetch faked.
+
+No test calls the real model. That is what `eval` is for: run by hand when changing
+prompts, thresholds or models, so checking the model's behaviour costs cents, not
+dollars.
 
 ## Out of scope for the prototype
 
