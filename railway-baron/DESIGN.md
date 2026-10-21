@@ -71,9 +71,15 @@ truth. The request asks several things in one go:
 | Question key | Type | Used for |
 | --- | --- | --- |
 | `answer` | `noul` | The answer itself: "Considering the secret `answer`: <the rescuers' question>" |
-| `is_yes_no` | `noul` | Is this a real yes/no question? If not, the robot refuses it and it doesn't count |
-| `is_guess` | `noul` | Does it name a specific candidate? If so, it's a guess |
-| `guess_correct` | `noul` | Does the thing it names refer to the secret answer? (Only used when `is_guess` is high) |
+| `kind` | `choice` | A guess, a category ("Is it a celebrity?"), a property ("Is it alive?"), or not a yes/no question (refused, doesn't count). One choice, so a guess has to beat a category head to head |
+| `guess_correct` | `noul` | Does it name the secret answer itself, not just a group it belongs to? (Only used for guesses) |
+
+A guess only frees the pet when the question's own words name the answer as well
+(`namesAnswer` in `src/shared/rules.ts`: a shared word, or the answer run together, so
+"Is it Gosling?" counts for Ryan Gosling but "Is it a celebrity?" doesn't). If the model
+calls a question a right guess and the words don't name the answer, it gets an ordinary
+yes or no. This came from playtesting: with separate yes/no checks, "Is it a
+celebrity?" won the round for Ryan Gosling.
 
 The `answer` probability maps to the robot's reply in three bands: **yes** (≥ 0.65),
 **no** (≤ 0.35), and **"my circuits are unsure"** in between. The unsure reply still
