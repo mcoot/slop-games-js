@@ -9,6 +9,11 @@
     "bondi-ski/src",
     "bondi-ski/test",
     "bondi-ski/vite.config.ts",
-    "bondi-ski/server"
+    "bondi-ski/server",
+    "railway-baron/src",
+    "railway-baron/test",
+    "railway-baron/server",
+    "railway-baron/tools",
+    "railway-baron/vite.config.ts"
   ]
 }

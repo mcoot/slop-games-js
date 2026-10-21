@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tied to the Tracks</title>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <div id="hud" hidden>
+      <div class="clock"><span class="label">Train in</span> <span class="time">8:00</span></div>
+      <div class="qs"><span class="n">20</span> questions left</div>
+    </div>
+    <div id="bubble" hidden></div>
+    <div id="strike" hidden>The robot is on strike for the day (the server's daily budget is spent). Try again tomorrow!</div>
+
+    <div id="start" class="overlay">
+      <div class="card">
+        <h1>Tied to the Tracks</h1>
+        <p class="lede">The dastardly railway baron has tied your beloved pet to the tracks, and the train is coming.
+          Only his robot minion knows the word that releases the lever. Ask it yes-or-no questions, together,
+          and guess the answer in 20 questions before the train arrives.</p>
+        <form class="join" hidden>
+          <label>Your name <input name="name" maxlength="24" autocomplete="nickname" required /></label>
+          <button class="primary">Join the rescue</button>
+        </form>
+        <form class="create">
+          <label>Your name <input name="name" maxlength="24" autocomplete="nickname" required /></label>
+          <label>Access code <input name="code" type="password" autocomplete="off" required /></label>
+          <button class="primary">Be the baron</button>
+          <p class="hint">The baron makes the room (it needs the access code) and sends the invite link to the rescuers.</p>
+        </form>
+        <p class="error" hidden></p>
+      </div>
+    </div>
+
+    <aside id="panel" hidden>
+      <section class="members"></section>
+      <section class="lobby-baron" hidden>
+        <h2>Program your robot</h2>
+        <p class="hint">Pick a person, place or thing. The rescuers must guess it.</p>
+        <form class="secret">
+          <input name="answer" maxlength="60" placeholder="e.g. a giraffe" autocomplete="off" required />
+          <input name="notes" maxlength="200" placeholder="Notes for the robot (optional), e.g. a baby one" autocomplete="off" />
+          <button>Lock it in</button>
+        </form>
+        <p class="secret-status"></p>
+        <div class="row">
+          <button class="invite">Copy invite link</button>
+          <button class="primary go" disabled>Start the train</button>
+        </div>
+      </section>
+      <section class="lobby-rescuer" hidden>
+        <h2>Whose pet is it?</h2>
+        <div class="pets"></div>
+        <p class="hint wait"></p>
+      </section>
+      <section class="ask" hidden>
+        <form class="propose">
+          <input name="text" maxlength="160" placeholder="Ask a yes or no question…" autocomplete="off" />
+          <button>Propose</button>
+        </form>
+        <p class="hint agree"></p>
+        <ul class="proposals"></ul>
+      </section>
+      <section class="taunts" hidden>
+        <p class="hint secret-reminder"></p>
+        <div class="row"></div>
+      </section>
+      <section class="log" hidden>
+        <h2>Asked</h2>
+        <ol class="asked"></ol>
+      </section>
+      <button class="brain-toggle" hidden>Robot's brain</button>
+    </aside>
+
+    <aside id="brain" hidden>
+      <header><h2>Robot's brain</h2><button class="close">Close</button></header>
+      <p class="hint">Every call to the decision model: the probabilities it gave back, and the exact request and response.</p>
+      <div class="entries"></div>
+    </aside>
+
+    <div id="end" class="overlay" hidden>
+      <div class="card">
+        <h1></h1>
+        <p class="story"></p>
+        <p class="answer"></p>
+        <div class="row">
+          <button class="primary again" hidden>Another round</button>
+          <button class="brain-open">Robot's brain</button>
+          <button class="look">Look around</button>
+        </div>
+      </div>
+    </div>
+    <div id="toast"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

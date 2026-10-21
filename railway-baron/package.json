@@ -1,0 +1,26 @@
+{
+  "name": "@slop/railway-baron",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "build-server": "vite build --config server/vite.config.ts",
+    "server": "vite build --config server/vite.config.ts && node --enable-source-maps dist-server/main.js",
+    "dev-server": "vite build --config server/vite.config.ts && ORACLE=stub ACCESS_CODE=dev node --enable-source-maps dist-server/main.js",
+    "ask": "tsx tools/ask.ts",
+    "eval": "tsx tools/eval.ts",
+    "deploy-server": "cd .. && fly deploy . --config railway-baron/server/fly.toml --dockerfile railway-baron/server/Dockerfile --ha=false"
+  },
+  "dependencies": {
+    "three": "^0.186.1",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2",
+    "tsx": "^4.23.15"
+  }
+}

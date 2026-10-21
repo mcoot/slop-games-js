@@ -1,8 +1,8 @@
 name: CI
 
 # One workflow for everything: every PR and push to master is checked and the site built
-# once; a push to master then deploys that same build to GitHub Pages, and deploys Bondi
-# Ski's game server to fly.io when something it's built from changed.
+# once; a push to master then deploys that same build to GitHub Pages, and deploys each
+# game server (Bondi Ski's, Railway Baron's) to fly.io when something it's built from changed.
 on:
   pull_request:
   push:
@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       server: ${{ steps.changes.outputs.server }}
+      railway-baron: ${{ steps.changes.outputs.railway-baron }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,14 +42,22 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-      # Does this push touch anything the game server is built from? (A manual run always deploys it.)
+      # Does this push touch anything a game server is built from? (A manual run always deploys them.)
       - id: changes
         if: github.event_name != 'pull_request'
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || git diff --name-only HEAD^1 HEAD | grep -qE '^(bondi-ski/|packages/|pnpm-lock\.yaml|\.dockerignore)'; then
+          changed() {
+            [ "${{ github.event_name }}" = "workflow_dispatch" ] || git diff --name-only HEAD^1 HEAD | grep -qE "$1"
+          }
+          if changed '^(bondi-ski/|packages/|pnpm-lock\.yaml|\.dockerignore)'; then
             echo "server=true" >> "$GITHUB_OUTPUT"
           else
             echo "server=false" >> "$GITHUB_OUTPUT"
+          fi
+          if changed '^(railway-baron/|pnpm-lock\.yaml|\.dockerignore)'; then
+            echo "railway-baron=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "railway-baron=false" >> "$GITHUB_OUTPUT"
           fi
 
   deploy-site:
@@ -80,5 +89,19 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
       # Built on fly.io's builders from the repo root (the server needs the workspace).
       - run: flyctl deploy . --config bondi-ski/server/fly.toml --dockerfile bondi-ski/server/Dockerfile --ha=false --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-railway-baron:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && needs.test.outputs.railway-baron == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: fly-railway-baron
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy . --config railway-baron/server/fly.toml --dockerfile railway-baron/server/Dockerfile --ha=false --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
