@@ -1,4 +1,4 @@
-import { RULES, agreed, reply } from "../src/shared/rules";
+import { RULES, agreed, namesAnswer, reply } from "../src/shared/rules";
 import {
   ANSWER_MAX,
   NOTES_MAX,
@@ -221,7 +221,8 @@ export class Room {
     let a: Asked;
     try {
       const j = await this.o.oracle.ask(secret, p.text);
-      a = { n: 0, text: p.text, by: p.by, reply: reply(j), brain: j.brain };
+      const named = namesAnswer(p.text, secret.answer);
+      a = { n: 0, text: p.text, by: p.by, reply: reply(j, named), named, brain: j.brain };
     } catch {
       a = { n: 0, text: p.text, by: p.by, reply: "error" };
     }

@@ -1,4 +1,4 @@
-import { RULES, reply } from "../src/shared/rules";
+import { RULES, namesAnswer, reply } from "../src/shared/rules";
 import { CASES, SECRETS } from "./cases";
 import { realOracle } from "./env";
 
@@ -27,7 +27,7 @@ console.log("\nQuestions                                           reply     yes
 for (const c of CASES) {
   const j = await oracle.ask({ answer: c.answer, notes: c.notes ?? "" }, c.question);
   cost += j.brain.cost ?? 0;
-  const r = reply(j);
+  const r = reply(j, namesAnswer(c.question, c.answer));
   if (r === c.expect) right++;
   const label = `${c.answer}: ${c.question}`.slice(0, 50).padEnd(50);
   console.log(`  ${r === c.expect ? "✓" : "✗"} ${label} ${r.padEnd(8)} ${pct(j.yes)}  ${pct(j.isYesNo)}  ${pct(j.isGuess)}  ${pct(j.guessCorrect)}${r === c.expect ? "" : `   (want ${c.expect})`}`);

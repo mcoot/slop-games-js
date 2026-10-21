@@ -58,6 +58,25 @@ describe("a round", () => {
     await r.until((v) => v.phase === "lobby" && !v.ready && v.asked.length === 0);
   });
 
+  it("only frees the pet when the question names the answer, whatever the model thinks", async () => {
+    s = await server();
+    const { rs, b } = await started(s.url, "Ryan Gosling");
+    keep([...rs, b]);
+    const r = rs[0]!;
+    // The model takes all of these for right guesses.
+    s.oracle.rule = () => ({ yes: 0.95, isGuess: 0.9, guessCorrect: 0.9 });
+    r.send({ k: "propose", text: "Is it a celebrity?" });
+    let v = await r.until((v) => v.asked.length === 1);
+    // It only describes him: an ordinary yes, and the round goes on.
+    expect(v.asked[0]).toMatchObject({ n: 1, reply: "yes" });
+    expect(v.phase).toBe("playing");
+    await b.until((v) => v.asked.length === 1);
+    expect(b.view!.asked[0]!.named).toBe(false);
+    r.send({ k: "propose", text: "Is it Gosling?" });
+    v = await r.until((v) => v.phase === "won");
+    expect(v.asked[1]).toMatchObject({ n: 2, reply: "correct", named: true });
+  });
+
   it("maps the robot's probabilities to yes, no and unsure, and doesn't count refusals", async () => {
     s = await server();
     const { rs } = await started(s.url, "teapot");

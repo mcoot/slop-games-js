@@ -39,6 +39,14 @@ function state(secret: Secret, question?: string): Record<string, string> {
   return s;
 }
 
+/** What a question can be. A guess is the only kind that can win (or waste) a question outright. */
+export const KINDS = {
+  guess: "A direct guess naming one specific answer, like 'Is it a giraffe?', 'Is it the Eiffel Tower?' or 'Is it Albert Einstein?'",
+  category: "Asks whether it is a kind, group or category of thing, like 'Is it an animal?', 'Is it a celebrity?', 'Is it a place?' or 'Is it a musician?'",
+  property: "Asks about a property, feature or fact, like 'Is it bigger than a car?', 'Is it alive?' or 'Were they born before 1950?'",
+  not_yes_no: "Not a yes/no question: open-ended (like 'What colour is it?'), a statement, a command, or nonsense",
+};
+
 /** The Decisions request that checks an answer. */
 export function validateRequest(model: string, secret: Secret) {
   return {
@@ -70,23 +78,20 @@ export function askRequest(model: string, secret: Secret, question: string) {
         instructions: `${about} Answering truthfully about \`secret_answer\`, is the answer to \`question\` yes?`,
         criteria: { true: "Yes, it is true of `secret_answer`", false: "No, it is not true of `secret_answer`" },
       },
-      is_yes_no: {
-        type: "noul",
-        instructions: `${about} Is \`question\` a question that can be answered with yes or no?`,
-        criteria: { true: "A yes/no question (including a guess like 'Is it a cat?')", false: "Not a yes/no question: open-ended, a statement, a command, or nonsense" },
-      },
-      is_guess: {
-        type: "noul",
-        instructions: `${about} Is \`question\` a direct guess, naming one specific answer (like 'Is it a giraffe?' or 'Is it the Eiffel Tower?')?`,
-        criteria: {
-          true: "A direct guess at one specific answer",
-          false: "Asks about a category, property or feature (like 'Is it an animal?' or 'Is it bigger than a car?')",
-        },
+      // One choice rather than separate yes/no checks, so "a guess" has to beat "asks about a
+      // kind of thing" head to head: "Is it a celebrity?" is a category, not a guess.
+      kind: {
+        type: "choice",
+        instructions: `${about} What kind of question is \`question\`?`,
+        criteria: KINDS,
       },
       guess_correct: {
         type: "noul",
-        instructions: `${about} If \`question\` guesses a specific answer, is the thing it names the same as \`secret_answer\` (ignoring spelling, plurals and articles)?`,
-        criteria: { true: "It names `secret_answer`", false: "It names something else, or doesn't name anything" },
+        instructions: `${about} Does \`question\` name \`secret_answer\` itself, as a host of 20 questions would accept as the right final guess? Naming a group, kind or category that \`secret_answer\` belongs to is not naming it.`,
+        criteria: {
+          true: "It names `secret_answer` itself (by name, or a near spelling, plural or nickname for that one specific answer)",
+          false: "It names something else, or only a group or category `secret_answer` belongs to (like 'a celebrity' or 'an actor' for a famous actor, or 'an animal' for a giraffe)",
+        },
       },
     },
   };
@@ -137,10 +142,12 @@ export class OpenRouterOracle implements Oracle {
 
   async ask(secret: Secret, question: string): Promise<Judgement & { brain: Brain }> {
     const { response, brain } = await this.call(askRequest(this.o.model, secret, question));
+    const kind = response.answers.kind;
+    if (kind?.type !== "choice") throw new Error("no choice answer for kind");
     return {
       yes: noul(response, "answer"),
-      isYesNo: noul(response, "is_yes_no"),
-      isGuess: noul(response, "is_guess"),
+      isYesNo: 1 - (kind.probabilities.not_yes_no ?? 0),
+      isGuess: kind.probabilities.guess ?? 0,
       guessCorrect: noul(response, "guess_correct"),
       brain,
     };
@@ -215,7 +222,10 @@ export class StubOracle implements Oracle {
       ...this.rule?.(secret, question),
     };
     const n = (v: number) => ({ type: "noul", noul: v });
-    const answers = { answer: n(j.yes), is_yes_no: n(j.isYesNo), is_guess: n(j.isGuess), guess_correct: n(j.guessCorrect) };
+    const rest = (1 - j.isGuess) * j.isYesNo;
+    const probabilities = { guess: j.isGuess * j.isYesNo, category: rest / 2, property: rest / 2, not_yes_no: 1 - j.isYesNo };
+    const kind = { type: "choice", choice: Object.entries(probabilities).sort((a, b) => b[1] - a[1])[0]![0], probabilities, confidence: 0.9 };
+    const answers = { answer: n(j.yes), kind, guess_correct: n(j.guessCorrect) };
     const response = { model: "stub", answers, usage: { input_tokens: 0, output_tokens: 0, cost: 0 } };
     return { ...j, brain: { model: "stub", request, response, ms: this.delay, cost: 0 } };
   }
