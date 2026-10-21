@@ -3,3 +3,4 @@ packages:
   - tokyo-station-chase
   - tokyo-station-chase/games/*
   - bondi-ski
+  - railway-baron
