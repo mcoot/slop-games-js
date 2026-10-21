@@ -64,15 +64,30 @@ against a chat LLM, it is a second implementation of that module, not a rewrite.
 
 ### 2. How the robot answers
 
-Each question is one request. `state` holds the secret answer and the baron's notes,
-and nothing else (no history), so every answer is judged on its own against the
-truth. The request asks several things in one go:
+Each question is two requests, made at the same time, each with nothing else in it (no
+history), so every answer is judged on its own:
 
-| Question key | Type | Used for |
-| --- | --- | --- |
-| `answer` | `noul` | The answer itself: "Considering the secret `answer`: <the rescuers' question>" |
-| `kind` | `choice` | A guess, a category ("Is it a celebrity?"), a property ("Is it alive?"), or not a yes/no question (refused, doesn't count). One choice, so a guess has to beat a category head to head |
-| `guess_correct` | `noul` | Does it name the secret answer itself, not just a group it belongs to? (Only used for guesses) |
+| Request | `state` | Question key | Type | Used for |
+| --- | --- | --- | --- | --- |
+| Answer | secret answer, baron's notes, `facts`, question | `answer` | `noul` | The answer itself, judged against the facts |
+| | | `guess_correct` | `noul` | Only when the question's words name the answer: does it guess exactly that? |
+| Kind | the question alone | `kind` | `choice` | A guess, a category ("Is it a celebrity?"), a property ("Is it alive?"), not a yes/no question, or nonsense. The last two are refused and don't count |
+
+Splitting them came from playtesting: in one request, `guess_correct` scored high for
+anything to do with the answer ("Has he been in a space movie?") and the kind of
+question was swayed by what the answer was. The kind request never sees the answer.
+
+**Facts.** A decision model is a small head on a frozen base model, so it knows only
+what that base model learned (Clef-flash is Qwen3.5-9B; no cutoff is published), and
+it's weak on knowledge. It's built to judge what's in the state, so we put the facts
+there: when the baron locks in an answer, the server takes the intro of its Wikipedia
+article (searching with the notes too, skipping disambiguation pages, about 1,500
+characters) and sends it as `facts` with every question. The baron sees which page it
+read and can steer it with a note. No page, no facts; the game carries on.
+
+**Provider.** OpenRouter serves Clef from several providers, and they answered
+differently in playtests, so we prefer one (`PROVIDER`, default `cloudflare`), falling
+back to others only if it's down.
 
 A guess only frees the pet when the question's own words name the answer as well
 (`namesAnswer` in `src/shared/rules.ts`: a shared word, or the answer run together, so

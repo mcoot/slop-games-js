@@ -76,6 +76,9 @@ export interface SecretView {
   answer: string;
   notes: string;
   category: string;
+  /** What the robot read up on (the intro of a Wikipedia article), if it found anything. */
+  facts?: string;
+  source?: { title: string; url: string };
   brain?: Brain;
 }
 

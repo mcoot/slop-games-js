@@ -36,8 +36,9 @@ A deployed game takes `?server=ws://localhost:8788` to use a local server.
 pnpm --filter @slop/railway-baron ask giraffe "Is it an animal?" "Is it a giraffe?"
 pnpm --filter @slop/railway-baron ask --check "the concept of justice"
 pnpm --filter @slop/railway-baron ask --raw --notes "a baby one" giraffe "Is it tall?"
-pnpm --filter @slop/railway-baron eval         # ~30 known cases (tools/cases.ts), scored
-MODEL=cloudflare/clef pnpm --filter @slop/railway-baron eval
+pnpm --filter @slop/railway-baron eval         # the known cases (tools/cases.ts), scored
+MODELS=cloudflare/clef-flash,cloudflare/clef FACTS=both pnpm --filter @slop/railway-baron eval   # side by side
+ONLY=Gosling pnpm --filter @slop/railway-baron eval                                            # just some cases
 ```
 
 The thresholds that turn probabilities into yes, no and unsure are in
@@ -63,5 +64,5 @@ fly apps create slop-railway-baron
 fly secrets set -a slop-railway-baron OPENROUTER_API_KEY=sk-or-... ACCESS_CODE=<something to tell friends>
 ```
 
-Settings are environment variables (see `server/main.ts`): `MODEL`, `CALLS_PER_DAY`
+Settings are environment variables (see `server/main.ts`): `MODEL`, `PROVIDER`, `FACTS=0`, `CALLS_PER_DAY`
 (the whole server's daily cap on model calls; default 500), `ROUND_SECONDS`.

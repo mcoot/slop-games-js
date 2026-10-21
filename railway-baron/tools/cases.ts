@@ -3,6 +3,8 @@ import type { Reply } from "../src/shared/wire";
 /**
  * Questions with known answers, to see how a model does on the game's job before
  * playing with it (`pnpm eval`). Kept small: each one is a real (cheap) model call.
+ * When a playtest gets something wrong, add it here (the robot's brain panel has the
+ * question and what came back).
  */
 export const CASES: { answer: string; notes?: string; question: string; expect: Reply }[] = [
   { answer: "giraffe", question: "Is it an animal?", expect: "yes" },
@@ -31,6 +33,14 @@ export const CASES: { answer: string; notes?: string; question: string; expect: 
   { answer: "Ryan Gosling", question: "Is it Gosling?", expect: "correct" },
   { answer: "Ryan Gosling", question: "Is it Ryan Reynolds?", expect: "wrong" },
   { answer: "giraffe", question: "Is it a mammal?", expect: "yes" },
+  // From playtesting: films he's been in (Project Hail Mary came out in 2026, which may be
+  // after the model's training), and nonsense.
+  { answer: "Ryan Gosling", question: "Has he been in a space related movie?", expect: "yes" },
+  { answer: "Ryan Gosling", question: "Was he in the Barbie movie?", expect: "yes" },
+  { answer: "Ryan Gosling", question: "Was he in Titanic?", expect: "no" },
+  { answer: "Ryan Gosling", question: "Is he Canadian?", expect: "yes" },
+  { answer: "Ryan Gosling", question: "Do beans wistfully buffalo?", expect: "refused" },
+  { answer: "teapot", question: "Purple elephant sideways?", expect: "refused" },
   { answer: "teapot", question: "Is it found in a kitchen?", expect: "yes" },
   { answer: "teapot", question: "Is it made of metal?", expect: "unsure" },
   { answer: "teapot", question: "Is it a tea pot?", expect: "correct" },

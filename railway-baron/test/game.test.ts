@@ -44,7 +44,7 @@ describe("a round", () => {
     // Rescuers don't see the robot's brain mid-round; the baron does.
     expect(r.view!.asked[0]!.brain).toBeUndefined();
     await b.until((v) => v.asked.length === 1);
-    expect(b.view!.asked[0]!.brain?.request).toMatchObject({ state: { secret_answer: "giraffe", question: "Is it an animal?" } });
+    expect(b.view!.asked[0]!.brain?.request).toMatchObject({ answer: { state: { secret_answer: "giraffe", question: "Is it an animal?" } }, kind: { state: { question: "Is it an animal?" } } });
 
     r.send({ k: "propose", text: "Is it a giraffe?" });
     const end = await r.until((v) => v.phase === "won");
@@ -75,6 +75,20 @@ describe("a round", () => {
     r.send({ k: "propose", text: "Is it Gosling?" });
     v = await r.until((v) => v.phase === "won");
     expect(v.asked[1]).toMatchObject({ n: 2, reply: "correct", named: true });
+  });
+
+  it("reads up on the answer and gives the robot the facts with every question", async () => {
+    s = await server({
+      lookup: async (answer) => ({ title: "Ryan Gosling", url: "https://en.wikipedia.org/wiki/Ryan_Gosling", text: `${answer} is a Canadian actor. He starred in Barbie (2023).` }),
+    });
+    const { rs, b } = await started(s.url, "Ryan Gosling");
+    keep([...rs, b]);
+    expect(b.view!.secret).toMatchObject({ source: { title: "Ryan Gosling" }, facts: expect.stringContaining("Barbie") });
+    // The rescuers don't get to read it.
+    expect(JSON.stringify(rs[0]!.view)).not.toContain("Canadian");
+    rs[0]!.send({ k: "propose", text: "Was he in Barbie?" });
+    await b.until((v) => v.asked.length === 1);
+    expect(b.view!.asked[0]!.brain?.request).toMatchObject({ answer: { state: { facts: expect.stringContaining("Barbie") } } });
   });
 
   it("maps the robot's probabilities to yes, no and unsure, and doesn't count refusals", async () => {
