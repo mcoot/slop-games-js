@@ -91,6 +91,7 @@ label input { margin-top: 4px; }
 .bar .track b { position: absolute; left: 0; top: 0; bottom: 0; background: #6fd3ff; border-radius: 5px; }
 .bar .track i { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #ffd166; z-index: 1; }
 .bar .v { text-align: right; }
+#brain .named { margin: 6px 0 0; font: 12px ui-monospace, Menlo, monospace; color: #8a9aa8; }
 #brain details { margin-top: 8px; font-size: 12px; }
 #brain summary { cursor: pointer; color: #8a9aa8; }
 #brain pre { max-height: 320px; overflow: auto; padding: 8px; border-radius: 8px; background: #0b1016; font-size: 11px; white-space: pre-wrap; word-break: break-word; }

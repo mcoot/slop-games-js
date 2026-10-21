@@ -26,9 +26,18 @@ export interface Judgement {
   guessCorrect: number;
 }
 
-export function reply(j: Judgement, rules = RULES): Reply {
+/**
+ * What the robot says. `named` is whether the question's own words name the answer
+ * (`namesAnswer`): the model alone can't free the pet, so a question that only
+ * describes the answer ("Is it a celebrity?" for Ryan Gosling) is answered like any
+ * other question even when the model takes it for a right guess.
+ */
+export function reply(j: Judgement, named: boolean, rules = RULES): Reply {
   if (j.isYesNo < rules.yesNo) return "refused";
-  if (j.isGuess >= rules.guess) return j.guessCorrect >= rules.guessRight ? "correct" : "wrong";
+  if (j.isGuess >= rules.guess) {
+    if (j.guessCorrect < rules.guessRight) return "wrong";
+    if (named) return "correct";
+  }
   if (j.yes >= rules.yes) return "yes";
   if (j.yes <= rules.no) return "no";
   return "unsure";
@@ -37,4 +46,32 @@ export function reply(j: Judgement, rules = RULES): Reply {
 /** More than half the rescuers back it (so a lone rescuer's question goes straight away). */
 export function agreed(backers: number, rescuers: number): boolean {
   return backers * 2 > rescuers;
+}
+
+/** Little words that don't make a guess: "the", "of", titles. */
+const FILLER = new Set(["a", "an", "the", "of", "and", "in", "on", "at", "to", "for", "de", "la", "le", "von", "van", "mr", "mrs", "ms", "dr", "sir", "st", "it", "is", "this"]);
+
+const words = (s: string) =>
+  s
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .split(/\s+/)
+    .filter((w) => w && !FILLER.has(w))
+    .map((w) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w));
+
+/**
+ * Does the question name the answer, in so many words? True when it shares a real word
+ * with the answer ("Is it Gosling?" for Ryan Gosling) or contains it run together
+ * ("tea pot" for teapot). A guess that names it some other way (a nickname, a
+ * translation) won't free the pet; it gets an ordinary yes or no instead.
+ */
+export function namesAnswer(question: string, answer: string): boolean {
+  const a = words(answer);
+  const q = words(question);
+  if (!a.length) return false;
+  if (q.join("").includes(a.join(""))) return true;
+  const asked = new Set(q);
+  return a.some((w) => w.length >= 3 && asked.has(w));
 }

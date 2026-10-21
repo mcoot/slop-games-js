@@ -57,6 +57,8 @@ export interface Asked {
   text: string;
   by: string;
   reply: Reply;
+  /** Whether the question's words name the answer (only a guess that does can win). */
+  named?: boolean;
   /** The model call behind it: live for the baron, for everyone once the round's over. */
   brain?: Brain;
 }

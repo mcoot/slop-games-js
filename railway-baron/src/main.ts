@@ -335,11 +335,15 @@ function renderBrain(v: RoomView): void {
 function askedEntry(a: Asked, brain: Brain): string {
   const r = answers(brain);
   const p = (k: string) => r[k]?.noul ?? 0;
+  const kind = r.kind?.probabilities ?? {};
   return `<article><h3>${a.n ? `Q${a.n}` : "—"}: “${esc(a.text)}” <span class="reply ${a.reply}">${BADGES[a.reply]}</span></h3>
     ${bar("yes", p("answer"), [RULES.no, RULES.yes])}
-    ${bar("yes/no?", p("is_yes_no"), [RULES.yesNo])}
-    ${bar("a guess?", p("is_guess"), [RULES.guess])}
-    ${bar("guess right?", p("guess_correct"), [RULES.guessRight])}
+    ${bar("a guess", kind.guess ?? 0, [RULES.guess])}
+    ${bar("a category", kind.category ?? 0, [])}
+    ${bar("a property", kind.property ?? 0, [])}
+    ${bar("not yes/no", kind.not_yes_no ?? 0, [1 - RULES.yesNo])}
+    ${bar("guess right", p("guess_correct"), [RULES.guessRight])}
+    <p class="named">Names the answer in so many words: <b>${a.named ? "yes" : "no"}</b>${a.named ? "" : " (so it can't win outright)"}</p>
     ${rawBlock(brain)}</article>`;
 }
 

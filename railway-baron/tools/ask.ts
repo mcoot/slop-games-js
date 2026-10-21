@@ -1,4 +1,4 @@
-import { RULES, reply } from "../src/shared/rules";
+import { RULES, namesAnswer, reply } from "../src/shared/rules";
 import { realOracle } from "./env";
 
 /**
@@ -46,7 +46,7 @@ for (const q of questions) {
   const j = await oracle.ask(secret, q);
   cost += j.brain.cost ?? 0;
   console.log(
-    `${q}\n  -> ${reply(j).toUpperCase()}   yes ${pct(j.yes)}  yes/no ${pct(j.isYesNo)}  guess ${pct(j.isGuess)}  right ${pct(j.guessCorrect)}  [${j.brain.ms} ms]`,
+    `${q}\n  -> ${reply(j, namesAnswer(q, answer)).toUpperCase()}   yes ${pct(j.yes)}  yes/no ${pct(j.isYesNo)}  guess ${pct(j.isGuess)}  right ${pct(j.guessCorrect)}  names it: ${namesAnswer(q, answer) ? "yes" : "no"}  [${j.brain.ms} ms]`,
   );
   if (raw) console.log(JSON.stringify(j.brain, null, 2));
 }
