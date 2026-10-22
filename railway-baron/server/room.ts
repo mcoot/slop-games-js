@@ -15,6 +15,7 @@ import {
   type SecretView,
   type ServerFrame,
 } from "../src/shared/wire";
+import type { Lookup } from "./facts";
 import type { Oracle } from "./oracle";
 
 /** The server's limit on model calls, shared by every room. */
@@ -27,6 +28,8 @@ export interface RoomOptions {
   oracle: Oracle;
   budget: Budget;
   roundMs: number;
+  /** Looks up facts about the answer for the robot (Wikipedia); none in tests. */
+  lookup?: Lookup;
   now?: () => number;
 }
 
@@ -190,9 +193,11 @@ export class Room {
     this.rejected = undefined;
     this.update();
     try {
-      const v = await this.o.oracle.validate({ answer, notes });
+      // Read up on it while the robot checks it.
+      const [v, facts] = await Promise.all([this.o.oracle.validate({ answer, notes }), this.o.lookup?.(answer, notes) ?? null]);
       if (v.category !== "not_valid" && v.p >= RULES.category) {
         this.secret = { answer, notes, category: v.category, brain: v.brain };
+        if (facts) Object.assign(this.secret, { facts: facts.text, source: { title: facts.title, url: facts.url } });
       } else {
         this.secret = null;
         this.rejected = { answer, reason: "That's not a person, place or thing the robot can work with.", brain: v.brain };

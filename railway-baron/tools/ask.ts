@@ -1,4 +1,5 @@
 import { RULES, namesAnswer, reply } from "../src/shared/rules";
+import { wikipedia } from "../server/facts";
 import { realOracle } from "./env";
 
 /**
@@ -8,6 +9,7 @@ import { realOracle } from "./env";
  *   pnpm ask --check "Bondi Beach"          (would the robot take this answer?)
  *   pnpm ask --notes "the one in Sydney" "Bondi Beach" "Is it a beach?"
  *   pnpm ask --raw giraffe "Is it tall?"    (the full request and response too)
+ *   pnpm ask --no-facts giraffe "Is it tall?"  (without reading up on Wikipedia first)
  */
 const args = process.argv.slice(2);
 const flag = (f: string) => {
@@ -20,6 +22,7 @@ const option = (f: string) => {
 };
 const raw = flag("--raw");
 const check = flag("--check");
+const noFacts = flag("--no-facts");
 const notes = option("--notes") ?? "";
 const [answer, ...questions] = args;
 if (!answer || (!check && !questions.length)) {
@@ -32,7 +35,9 @@ if (questions.length > 10) {
 }
 
 const oracle = realOracle();
-const secret = { answer, notes };
+const facts = noFacts ? null : await wikipedia()(answer, notes);
+console.log(facts ? `Read up on: ${facts.title} (${facts.url})${raw ? `\n${facts.text}` : ""}\n` : "No facts.\n");
+const secret = { answer, notes, facts: facts?.text };
 let cost = 0;
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`.padStart(6);
 

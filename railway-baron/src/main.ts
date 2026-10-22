@@ -194,7 +194,12 @@ function show(v: RoomView): void {
   $(".lobby-rescuer", panel).hidden = !(!baron && v.phase === "lobby");
   const status = $(".secret-status", panel);
   if (v.thinking && v.phase === "lobby") status.textContent = "The robot is checking it…";
-  else if (v.secret) status.innerHTML = `Locked in: <b>${esc(v.secret.answer)}</b> (a ${esc(v.secret.category)}).`;
+  else if (v.secret)
+    status.innerHTML =
+      `Locked in: <b>${esc(v.secret.answer)}</b> (a ${esc(v.secret.category)}). ` +
+      (v.secret.source
+        ? `The robot read up on <a href="${esc(v.secret.source.url)}" target="_blank" rel="noopener">${esc(v.secret.source.title)}</a> on Wikipedia. Wrong page? Add a note and lock it in again.`
+        : "The robot couldn't find it on Wikipedia, so it'll go on what it knows.");
   else if (v.rejected) status.innerHTML = `<span class="bad">The robot won't take “${esc(v.rejected.answer)}”: ${esc(v.rejected.reason)}</span>`;
   else status.textContent = "";
   const go = $<HTMLButtonElement>(".go", panel);
@@ -304,8 +309,13 @@ function bar(label: string, p: number, marks: number[]): string {
   return `<div class="bar"><span class="l">${label}</span><span class="track">${marks.map((m) => `<i style="left:${m * 100}%"></i>`).join("")}<b style="width:${(p * 100).toFixed(1)}%"></b></span><span class="v">${(p * 100).toFixed(1)}%</span></div>`;
 }
 
-function answers(brain: Brain): Record<string, { noul?: number; probabilities?: Record<string, number> } | undefined> {
-  return (brain.response as { answers?: Record<string, never> } | null)?.answers ?? {};
+type Answers = Record<string, { noul?: number; probabilities?: Record<string, number> } | undefined>;
+/** The answers in a call's response; a question's two calls (answer and kind) together. */
+function answers(brain: Brain): Answers {
+  const r = brain.response as ({ answers?: Answers } & Record<string, { answers?: Answers } | null>) | null;
+  if (!r) return {};
+  if (r.answers) return r.answers;
+  return Object.assign({}, ...Object.values(r).map((x) => x?.answers ?? {}));
 }
 
 function rawBlock(brain: Brain): string {
@@ -322,7 +332,11 @@ function renderBrain(v: RoomView): void {
     entries.push(
       `<article><h3>Checking the answer: “${esc(checked ?? "")}”</h3>${Object.entries(probs)
         .map(([k, p]) => bar(k, p, [RULES.category]))
-        .join("")}${rawBlock(check)}</article>`,
+        .join("")}${
+        v.secret?.facts
+          ? `<details><summary>What it read up on: ${esc(v.secret.source?.title ?? "")} (Wikipedia)</summary><pre>${esc(v.secret.facts)}</pre></details>`
+          : ""
+      }${rawBlock(check)}</article>`,
     );
   }
   for (const a of v.asked) if (a.brain) entries.push(askedEntry(a, a.brain));
@@ -341,8 +355,9 @@ function askedEntry(a: Asked, brain: Brain): string {
     ${bar("a guess", kind.guess ?? 0, [RULES.guess])}
     ${bar("a category", kind.category ?? 0, [])}
     ${bar("a property", kind.property ?? 0, [])}
-    ${bar("not yes/no", kind.not_yes_no ?? 0, [1 - RULES.yesNo])}
-    ${bar("guess right", p("guess_correct"), [RULES.guessRight])}
+    ${bar("not yes/no", kind.not_yes_no ?? 0, [])}
+    ${bar("nonsense", kind.nonsense ?? 0, [])}
+    ${a.named ? bar("guess right", p("guess_correct"), [RULES.guessRight]) : ""}
     <p class="named">Names the answer in so many words: <b>${a.named ? "yes" : "no"}</b>${a.named ? "" : " (so it can't win outright)"}</p>
     ${rawBlock(brain)}</article>`;
 }

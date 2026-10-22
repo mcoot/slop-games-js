@@ -1,4 +1,5 @@
 import { startServer } from "./app";
+import { wikipedia } from "./facts";
 import { OpenRouterOracle, StubOracle, type Oracle } from "./oracle";
 import { RULES } from "../src/shared/rules";
 
@@ -7,6 +8,8 @@ import { RULES } from "../src/shared/rules";
  * - `PORT` (default 8788)
  * - `ACCESS_CODE`: needed to create a room; without it, no rooms can be made
  * - `OPENROUTER_API_KEY`, `MODEL` (default `cloudflare/clef-flash`)
+ * - `PROVIDER` (default `cloudflare`): always use this OpenRouter provider; empty for any
+ * - `FACTS=0` to stop looking the answer up on Wikipedia
  * - `ORACLE=stub` for a pretend robot that costs nothing (local play)
  * - `CALLS_PER_DAY` (default 500): model calls across the server before the robot strikes
  * - `ROUND_SECONDS` (default 480)
@@ -24,6 +27,7 @@ if (env.ORACLE === "stub") {
   oracle = new OpenRouterOracle({
     apiKey: env.OPENROUTER_API_KEY,
     model,
+    provider: env.PROVIDER ?? "cloudflare",
     // One line per model call in the logs, request and response in full.
     log: (b) => console.log(JSON.stringify({ ev: "decision", ...b })),
   });
@@ -36,6 +40,7 @@ const server = await startServer({
   callsPerDay: Number(env.CALLS_PER_DAY ?? 500),
   roundMs: env.ROUND_SECONDS ? Number(env.ROUND_SECONDS) * 1000 : RULES.roundMs,
   trustProxy: env.TRUST_PROXY === "1",
+  lookup: env.FACTS === "0" ? undefined : wikipedia(),
 });
 console.log(
   `railway-baron server on :${server.port}, oracle ${env.ORACLE === "stub" ? "stub" : model}` +

@@ -1,4 +1,4 @@
-import type { Judgement } from "../src/shared/rules";
+import { namesAnswer, type Judgement } from "../src/shared/rules";
 import type { Brain } from "../src/shared/wire";
 
 /**
@@ -16,6 +16,8 @@ export interface Oracle {
 export interface Secret {
   answer: string;
   notes: string;
+  /** What Wikipedia says about it, when we found something. */
+  facts?: string;
 }
 
 export interface Validation {
@@ -35,18 +37,22 @@ const CATEGORIES = {
 function state(secret: Secret, question?: string): Record<string, string> {
   const s: Record<string, string> = { secret_answer: secret.answer };
   if (secret.notes) s.baron_notes = secret.notes;
+  if (secret.facts) s.facts = secret.facts;
   if (question !== undefined) s.question = question;
   return s;
 }
 
-/** What a question can be. A guess is the only kind that can win (or waste) a question outright. */
+/**
+ * What kind of question it is. Judged on the question alone, so it can't be swayed by
+ * what the answer is. Only a guess can win (or waste a question) outright.
+ */
 export const KINDS = {
-  guess: "A direct guess naming one specific answer, like 'Is it a giraffe?', 'Is it the Eiffel Tower?' or 'Is it Albert Einstein?'",
-  category: "Asks whether it is a kind, group or category of thing, like 'Is it an animal?', 'Is it a celebrity?', 'Is it a place?' or 'Is it a musician?'",
-  property: "Asks about a property, feature or fact, like 'Is it bigger than a car?', 'Is it alive?' or 'Were they born before 1950?'",
-  not_yes_no: "Not a yes/no question: open-ended (like 'What colour is it?'), a statement, a command, or nonsense",
+  guess: "Names one specific answer: 'Is it a giraffe?', 'Is it the Eiffel Tower?', 'Is it Albert Einstein?'",
+  category: "Asks if it belongs to a kind or group: 'Is it an animal?', 'Is it a celebrity?', 'Is it a place?'",
+  property: "Asks about a feature, fact or event: 'Is it bigger than a car?', 'Is it alive?', 'Was he in the Barbie movie?'",
+  not_yes_no: "Can't be answered yes or no: 'What colour is it?', a statement, a command",
+  nonsense: "Doesn't make sense: random or meaningless words, 'Do beans wistfully buffalo?'",
 };
-
 /** The Decisions request that checks an answer. */
 export function validateRequest(model: string, secret: Secret) {
   return {
@@ -64,36 +70,34 @@ export function validateRequest(model: string, secret: Secret) {
 }
 
 /**
- * The Decisions request for one question. The question is data in the state, never part
- * of the instructions, so whatever the rescuers type can only be judged, not obeyed.
+ * The Decisions request that answers a question about the secret. The question is data
+ * in the state, never part of the instructions, so whatever the rescuers type can only
+ * be judged, not obeyed. `guess` adds the check for a right guess.
  */
-export function askRequest(model: string, secret: Secret, question: string) {
-  const about = "In a game of 20 questions, the hidden answer is `secret_answer` (`baron_notes`, if given, pins down what it means). A player asks `question`.";
+export function answerRequest(model: string, secret: Secret, question: string, guess: boolean) {
+  const questions: Record<string, unknown> = {
+    answer: {
+      type: "noul",
+      instructions: "Is the true answer to `question` yes, for `secret_answer`? Use `facts` and `baron_notes` if given.",
+      criteria: { true: "Yes", false: "No" },
+    },
+  };
+  if (guess) {
+    questions.guess_correct = {
+      type: "noul",
+      instructions: "Does `question` guess exactly `secret_answer`, by name?",
+      criteria: { true: "It names `secret_answer` itself", false: "It names something else, or only a group `secret_answer` belongs to" },
+    };
+  }
+  return { model, state: state(secret, question), questions };
+}
+
+/** The Decisions request that sorts a question by kind, from the question alone. */
+export function kindRequest(model: string, question: string) {
   return {
     model,
-    state: state(secret, question),
-    questions: {
-      answer: {
-        type: "noul",
-        instructions: `${about} Answering truthfully about \`secret_answer\`, is the answer to \`question\` yes?`,
-        criteria: { true: "Yes, it is true of `secret_answer`", false: "No, it is not true of `secret_answer`" },
-      },
-      // One choice rather than separate yes/no checks, so "a guess" has to beat "asks about a
-      // kind of thing" head to head: "Is it a celebrity?" is a category, not a guess.
-      kind: {
-        type: "choice",
-        instructions: `${about} What kind of question is \`question\`?`,
-        criteria: KINDS,
-      },
-      guess_correct: {
-        type: "noul",
-        instructions: `${about} Does \`question\` name \`secret_answer\` itself, as a host of 20 questions would accept as the right final guess? Naming a group, kind or category that \`secret_answer\` belongs to is not naming it.`,
-        criteria: {
-          true: "It names `secret_answer` itself (by name, or a near spelling, plural or nickname for that one specific answer)",
-          false: "It names something else, or only a group or category `secret_answer` belongs to (like 'a celebrity' or 'an actor' for a famous actor, or 'an animal' for a giraffe)",
-        },
-      },
-    },
+    state: { question },
+    questions: { kind: { type: "choice", instructions: "What kind of question is `question`, in a game of 20 questions?", criteria: KINDS } },
   };
 }
 
@@ -125,6 +129,8 @@ export interface OpenRouterOptions {
   url?: string;
   timeoutMs?: number;
   fetch?: typeof fetch;
+  /** Prefer this OpenRouter provider (e.g. `cloudflare`), so answers don't vary by who serves them (others only if it's down). */
+  provider?: string;
   /** Called after every call, e.g. to log it. */
   log?: (brain: Brain) => void;
 }
@@ -141,19 +147,32 @@ export class OpenRouterOracle implements Oracle {
   }
 
   async ask(secret: Secret, question: string): Promise<Judgement & { brain: Brain }> {
-    const { response, brain } = await this.call(askRequest(this.o.model, secret, question));
-    const kind = response.answers.kind;
+    // Only a question that names the answer can be a right guess, so only then ask.
+    const named = namesAnswer(question, secret.answer);
+    const [a, k] = await Promise.all([
+      this.call(answerRequest(this.o.model, secret, question, named)),
+      this.call(kindRequest(this.o.model, question)),
+    ]);
+    const kind = k.response.answers.kind;
     if (kind?.type !== "choice") throw new Error("no choice answer for kind");
+    const p = kind.probabilities;
     return {
-      yes: noul(response, "answer"),
-      isYesNo: 1 - (kind.probabilities.not_yes_no ?? 0),
-      isGuess: kind.probabilities.guess ?? 0,
-      guessCorrect: noul(response, "guess_correct"),
-      brain,
+      yes: noul(a.response, "answer"),
+      isYesNo: 1 - (p.not_yes_no ?? 0) - (p.nonsense ?? 0),
+      isGuess: p.guess ?? 0,
+      guessCorrect: named ? noul(a.response, "guess_correct") : 0,
+      brain: {
+        model: this.o.model,
+        request: { answer: a.brain.request, kind: k.brain.request },
+        response: { answer: a.brain.response, kind: k.brain.response },
+        ms: Math.max(a.brain.ms, k.brain.ms),
+        cost: (a.brain.cost ?? 0) + (k.brain.cost ?? 0),
+      },
     };
   }
 
-  private async call(request: { model: string }): Promise<{ response: DecisionsResponse; brain: Brain }> {
+  private async call(base: { model: string }): Promise<{ response: DecisionsResponse; brain: Brain }> {
+    const request = this.o.provider ? { ...base, provider: { order: [this.o.provider], allow_fallbacks: true } } : base;
     const t0 = performance.now();
     const res = await (this.o.fetch ?? fetch)(this.o.url ?? "https://openrouter.ai/api/alpha/decisions", {
       method: "POST",
@@ -207,26 +226,30 @@ export class StubOracle implements Oracle {
   }
 
   async ask(secret: Secret, question: string): Promise<Judgement & { brain: Brain }> {
-    const request = askRequest("stub", secret, question);
+    const named = namesAnswer(question, secret.answer);
+    const request = { answer: answerRequest("stub", secret, question, named), kind: kindRequest("stub", question) };
     await this.wait();
     const guess = /^(is it|it is|is this|are you)\s+(.+?)\??$/i.exec(question.trim());
-    const named = guess ? norm(guess[2]!) : "";
-    const isGuess = named && named.split(" ").length <= 4 && !/\b(bigger|smaller|alive|animal|person|place|thing|made|found|used|red|blue|green)\b/.test(named);
+    const said = guess ? norm(guess[2]!) : "";
+    const isGuess = said && said.split(" ").length <= 4 && !/\b(bigger|smaller|alive|animal|person|place|thing|made|found|used|red|blue|green)\b/.test(said);
     let h = 0;
     for (const c of norm(secret.answer) + "|" + norm(question)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
     const j: Judgement = {
       yes: h % 2 ? 0.9 : 0.1,
       isYesNo: question.trim().endsWith("?") && !/^(what|who|where|when|why|how|which)\b/i.test(question.trim()) ? 0.95 : 0.2,
       isGuess: isGuess ? 0.9 : 0.1,
-      guessCorrect: isGuess && named === norm(secret.answer) ? 0.95 : 0.05,
+      guessCorrect: isGuess && said === norm(secret.answer) ? 0.95 : 0.05,
       ...this.rule?.(secret, question),
     };
     const n = (v: number) => ({ type: "noul", noul: v });
     const rest = (1 - j.isGuess) * j.isYesNo;
-    const probabilities = { guess: j.isGuess * j.isYesNo, category: rest / 2, property: rest / 2, not_yes_no: 1 - j.isYesNo };
-    const kind = { type: "choice", choice: Object.entries(probabilities).sort((a, b) => b[1] - a[1])[0]![0], probabilities, confidence: 0.9 };
-    const answers = { answer: n(j.yes), kind, guess_correct: n(j.guessCorrect) };
-    const response = { model: "stub", answers, usage: { input_tokens: 0, output_tokens: 0, cost: 0 } };
+    const probabilities = { guess: j.isGuess * j.isYesNo, category: rest / 2, property: rest / 2, not_yes_no: 1 - j.isYesNo, nonsense: 0 };
+    const choice = Object.entries(probabilities).sort((x, y) => y[1] - x[1])[0]![0];
+    const usage = { input_tokens: 0, output_tokens: 0, cost: 0 };
+    const response = {
+      answer: { model: "stub", answers: named ? { answer: n(j.yes), guess_correct: n(j.guessCorrect) } : { answer: n(j.yes) }, usage },
+      kind: { model: "stub", answers: { kind: { type: "choice", choice, probabilities, confidence: 0.9 } }, usage },
+    };
     return { ...j, brain: { model: "stub", request, response, ms: this.delay, cost: 0 } };
   }
 

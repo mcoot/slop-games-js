@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { WebSocketServer, type WebSocket } from "ws";
 import { NAME_MAX, ROOM_PATTERN, TOKEN_PATTERN, type ClientFrame, type ServerFrame } from "../src/shared/wire";
+import type { Lookup } from "./facts";
 import type { Oracle } from "./oracle";
 import { Room, clean, type Budget } from "./room";
 
@@ -17,6 +18,7 @@ export interface ServerOptions {
   /** Model calls the whole server makes in a (UTC) day before the robot goes on strike. */
   callsPerDay: number;
   roundMs: number;
+  lookup?: Lookup;
   /** Behind fly.io's proxy, the player's IP is in `fly-client-ip`. */
   trustProxy?: boolean;
   /** How long a room with nobody in it lives. */
@@ -149,7 +151,7 @@ export async function startServer(o: ServerOptions) {
         creates.hit(ip);
         let name_ = roomCode();
         while (rooms.has(name_)) name_ = roomCode();
-        room = new Room(name_, { oracle: o.oracle, budget, roundMs: o.roundMs, now });
+        room = new Room(name_, { oracle: o.oracle, budget, roundMs: o.roundMs, lookup: o.lookup, now });
         rooms.set(name_, room);
         id = room.sit(token, name, "baron", send)!;
       } else {
